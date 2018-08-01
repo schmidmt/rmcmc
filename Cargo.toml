@@ -1,0 +1,29 @@
+[package]
+name = "rmcmc"
+version = "0.1.0"
+authors = ["Mike Schmidt <schmidmt@gmail.com>"]
+description = "RMCMC is a Bayesian statistics toolkit with implements, among other algorithms, Markov-Chain-Monte-Carlo."
+repository = "https://github.com/schmidmt/rmcmc"
+license = "MIT"
+categories = ["science"]
+keywords = ["Probability", "Statistics", "Bayesian", "Machine-learning", "MCMC"]
+
+[features]
+serde_support = ["serde", "serde_derive", "nalgebra/serde-serialize"]
+
+[badges]
+travis-ci = { repository = "schmidmt/rmcmc", branch = "master" }
+maintenance = { status = "actively-developed" }
+
+[dependencies]
+num = "0.2.0"
+rand = "0.5.3"
+special = "0.7.8"
+nalgebra = "0.16.0"
+rv = "^0.4"
+
+serde = {version = "1.0.70", optional = true}
+serde_derive = {version = "1.0.70", optional = true}
+
+[dev-dependencies]
+assert = "0.7.4"
