@@ -10,7 +10,6 @@ use rv::traits::{Mean, Rv, Variance};
 use parameter::Parameter;
 use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode};
 use statistics::Statistic;
-use common::Model;
 
 pub trait RWT: fmt::Debug + Clone + Copy {}
 
@@ -138,7 +137,7 @@ pub struct SRWM<D, T, V, M, L>
 where
     D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
     T: RWT,
-    M: Model,
+    M: 'static + Clone + fmt::Debug,
     L: Fn(&M) -> f64 + Clone + Sync,
     V: Clone + fmt::Debug
 {
@@ -154,7 +153,7 @@ impl <D, T, V, M, L> fmt::Debug for SRWM<D, T, V, M, L>
 where
     D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
     T: RWT,
-    M: Model,
+    M: 'static + Clone + fmt::Debug,
     L: Fn(&M) -> f64 + Clone + Sync,
     V: Clone + fmt::Debug
 { 
@@ -168,7 +167,7 @@ impl<D, T, V, M, L> SRWM<D, T, V, M, L>
 where
     D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
     T: RWT,
-    M: Model,
+    M: 'static + Clone + fmt::Debug,
     L: Fn(&M) -> f64 + Clone + Sync,
     V: Clone + fmt::Debug + Copy
 {
@@ -201,7 +200,7 @@ impl<D, T, V, M, L> Clone for SRWM<D, T, V, M, L>
 where
         D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
         T: RWT,
-        M: Model,
+        M: 'static + Clone + fmt::Debug,
         L: Fn(&M) -> f64 + Clone + Sync,
         V: Clone + fmt::Debug
 {
@@ -223,14 +222,14 @@ macro_rules! impl_traits_ordinal {
         impl<D, M, L, R> SteppingAlg<M, R> for SRWM<D, $dtype, $vtype, M, L>
         where 
             D: Rv<$dtype> + Variance<$vtype> + Mean<$dtype> + Clone + fmt::Debug,
-            M: Model,
+            M: 'static + Clone + fmt::Debug,
             L: Fn(&M) -> f64 + Clone + Sync + fmt::Debug,
             R: Rng
         {
             fn set_adapt(&mut self, mode: AdaptationMode) {
                 match mode {
-                    AdaptationMode::Enabled => self.adaptor.enabled = true,
-                    AdaptationMode::Disabled => self.adaptor.enabled = false,
+                    AdaptationMode::Enabled => self.adaptor.enable(),
+                    AdaptationMode::Disabled => self.adaptor.disable(),
                 };
             }
 
@@ -320,14 +319,14 @@ macro_rules! impl_traits_continuous {
         impl<D, M, L, R> SteppingAlg<M, R> for SRWM<D, $dtype, $vtype, M, L>
         where
             D: Rv<$dtype> + Variance<$vtype> + Mean<$dtype> + Clone + fmt::Debug,
-            M: Model,
+            M: 'static + Clone + fmt::Debug,
             L: Fn(&M) -> f64 + Clone + Sync,
             R: Rng
         {
             fn set_adapt(&mut self, mode: AdaptationMode) {
                 match mode {
-                    AdaptationMode::Enabled => self.adaptor.enabled = true,
-                    AdaptationMode::Disabled => self.adaptor.enabled = false,
+                    AdaptationMode::Enabled => self.adaptor.enable(),
+                    AdaptationMode::Disabled => self.adaptor.disable(),
                 };
             }
 
@@ -416,6 +415,7 @@ mod tests {
     use rv::misc::ks_test;
     use rv::prelude::Cdf;
     use utils::multiple_tries;
+    use std::rc::Rc;
     // use utils;
     // use std::path::Path;
 
@@ -425,27 +425,26 @@ mod tests {
     #[test]
     fn uniform_posterior_no_warmup() {
         #[derive(Copy, Clone, Debug)]
-        struct AModel {
+        struct Model {
             x: f64,
         }
-
-        impl Model for AModel {}
 
         let parameter = Parameter::new(
             "x".to_string(),
             Uniform::new(-1.0, 1.0).unwrap(),
-            make_lens!(AModel, f64, x),
+            make_lens!(Model, f64, x),
         );
 
-        fn log_likelihood(m: &AModel) -> f64 {
+        fn log_likelihood(m: &Model) -> f64 {
             Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x)
         }
 
-        let alg_start = SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap();
+        let alg_start = Rc::new(SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap());
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let m = AModel { x: 0.0 };
-            let results: Vec<Vec<AModel>> = Runner::new(alg_start.clone())
+            let m = Model { x: 0.0 };
+            let alg_start = alg_start.clone();
+            let results: Vec<Vec<Model>> = Runner::new(Rc::try_unwrap(alg_start).unwrap())
                 .warmup(0)
                 .chains(1)
                 .thinning(10)
@@ -469,27 +468,26 @@ mod tests {
     #[test]
     fn uniform_posterior_warmup() {
         #[derive(Copy, Clone, Debug)]
-        struct AModel {
+        struct Model {
             x: f64,
         }
 
-        impl Model for AModel {}
 
         let parameter = Parameter::new(
             "x".to_string(),
             Uniform::new(-1.0, 1.0).unwrap(),
-            make_lens!(AModel, f64, x),
+            make_lens!(Model, f64, x),
         );
 
-        fn log_likelihood(m: &AModel) -> f64 {
+        fn log_likelihood(m: &Model) -> f64 {
             Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x)
         }
 
         let alg_start = SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap();
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let m = AModel { x: 0.0 };
-            let results: Vec<Vec<AModel>> =
+            let m = Model { x: 0.0 };
+            let results: Vec<Vec<Model>> =
                 Runner::new(alg_start.clone()).thinning(10).chains(1).run(m);
 
             let samples: Vec<f64> = results
@@ -510,26 +508,24 @@ mod tests {
     #[test]
     fn gaussian_likelihood_uniform_prior() {
         #[derive(Copy, Clone, Debug)]
-        struct AModel {
+        struct Model {
             x: f64,
         }
-
-        impl Model for AModel {}
 
         let parameter = Parameter::new(
             "x".to_string(),
             Uniform::new(-10.0, 10.0).unwrap(),
-            make_lens!(AModel, f64, x),
+            make_lens!(Model, f64, x),
         );
 
         let log_likelihood =
-            |m: &AModel| Gaussian::new(0.0, 1.0).unwrap().ln_f(&m.x);
+            |m: &Model| Gaussian::new(0.0, 1.0).unwrap().ln_f(&m.x);
 
         let alg_start = SRWM::new(parameter, log_likelihood.clone(), Some(0.7)).unwrap();
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let m = AModel { x: 0.0 };
-            let results: Vec<Vec<AModel>> =
+            let m = Model { x: 0.0 };
+            let results: Vec<Vec<Model>> =
                 Runner::new(alg_start.clone()).thinning(10).chains(1).run(m);
 
             let samples: Vec<f64> = results
@@ -550,11 +546,10 @@ mod tests {
     #[test]
     fn gaussian_fit() {
         #[derive(Copy, Clone, Debug)]
-        struct AModel {
+        struct Model {
             sigma2: f64,
         }
 
-        impl Model for AModel {}
 
         let mut rng = rand::thread_rng();
 
@@ -565,13 +560,13 @@ mod tests {
             let parameter = Parameter::new(
                 "sigma2".to_string(),
                 InvGamma::new(alpha, beta).unwrap(),
-                make_lens!(AModel, f64, sigma2),
+                make_lens!(Model, f64, sigma2),
             );
 
             let data = Gaussian::new(0.0, 3.14).unwrap().sample(10, &mut rng);
 
             let ll_data = data.clone();
-            let log_likelihood = move |m: &AModel| {
+            let log_likelihood = move |m: &Model| {
                 // println!("Likelihood (sigma = {})", m.sigma);
                 let dist = Gaussian::new(0.0, m.sigma2.sqrt()).unwrap();
                 ll_data.iter().map(|x: &f64| -> f64 { dist.ln_f(x) }).sum()
@@ -580,8 +575,8 @@ mod tests {
             let alg_start =
                 SRWM::new(parameter, log_likelihood.clone(), Some(0.7)).unwrap();
 
-            let m = AModel { sigma2: 1.0 };
-            let results: Vec<Vec<AModel>> =
+            let m = Model { sigma2: 1.0 };
+            let results: Vec<Vec<Model>> =
                 Runner::new(alg_start.clone()).thinning(100).chains(2).run(m);
 
             let samples: Vec<f64> = results

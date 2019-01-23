@@ -6,12 +6,14 @@ use steppers::{SteppingAlg, AdaptationMode};
 use rand::prelude::*;
 use std::sync::Arc;
 
-pub struct Runner<M, A>
+pub struct Runner<'a, M, A>
 where
     M: Clone + Send + Sync,
     A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
+    A: 'a
 {
     pub stepper: A,
+    phantom_a: PhantomData<&'a A>,
     pub n_chains: usize,
     pub warmup_steps: usize,
     pub samples: usize,
@@ -20,14 +22,16 @@ where
     phantom_m: PhantomData<M>,
 }
 
-impl<M, A> Clone for Runner<M, A>
+impl<'a, M, A> Clone for Runner<'a, M, A>
 where
     M: Clone + Sync + Send,
-    A: 'static + SteppingAlg<M, StdRng> + Send + Sync + Clone,
+    A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
+    A: 'a
 {
     fn clone(&self) -> Self {
         Runner {
             stepper: self.stepper.clone(),
+            phantom_a: PhantomData,
             n_chains: self.n_chains,
             warmup_steps: self.warmup_steps,
             samples: self.samples,
@@ -38,14 +42,16 @@ where
     }
 }
 
-impl<M, A> Runner<M, A>
+impl<'a, M, A> Runner<'a, M, A>
 where
     M: Clone + Sync + Send,
-    A: 'static + SteppingAlg<M, StdRng> + Send + Sync + Clone,
+    A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
+    A: 'a,
 {
-    pub fn new(stepper: A) -> Runner<M, A> {
+    pub fn new(stepper: A) -> Runner<'a, M, A> {
         Runner {
             stepper,
+            phantom_a: PhantomData,
             n_chains: 1,
             warmup_steps: 1000,
             samples: 1000,
@@ -104,25 +110,24 @@ where
         M: 'static,
     {
         let seed = [0; 32];
-        let mut rng: Arc<Box<StdRng>> = Arc::new(Box::new(StdRng::from_seed(seed)));
+        let rng = Arc::new(StdRng::from_seed(seed));
 
-        let init = init_model;
         let thread_handles: Vec<thread::JoinHandle<_>> = (0..self.n_chains)
             .map(|i| {
                 let n_samples = self.samples;
                 let warmup_steps = self.warmup_steps;
                 let _thinning = self.thinning;
+                let rng = rng.clone();
+                let init_model = init_model.clone();
 
                 thread::Builder::new()
                     .name(format!("sampling thread {}", i))
                     .spawn(move || {
                         let mut stepper = self.stepper.clone();
-                        let mut rng = SeedableRng::from_rng(
-                            Arc::make_mut(&mut rng)
-                            ).unwrap();
+                        let mut rng = SeedableRng::from_rng(Arc::try_unwrap(rng).unwrap()).unwrap();
                         
                         // let prior_sample = stepper.prior_sample(&mut rng, init_model);
-                        let prior_sample = init.clone();
+                        let prior_sample = init_model;
 
                         //TODO - Randomly initialize all model values
 
