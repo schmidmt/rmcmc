@@ -1,14 +1,15 @@
 //! Runner for a set of stepper algorithm (i.e. a markov chain)
 
-extern crate rand;
 use std::marker::PhantomData;
 use std::thread;
-use traits::*;
+use steppers::{SteppingAlg, AdaptationMode};
+use rand::prelude::*;
+use std::sync::Arc;
 
 pub struct Runner<M, A>
 where
     M: Clone + Send + Sync,
-    A: SteppingAlg<M> + Send + Sync + Clone,
+    A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
 {
     pub stepper: A,
     pub n_chains: usize,
@@ -22,7 +23,7 @@ where
 impl<M, A> Clone for Runner<M, A>
 where
     M: Clone + Sync + Send,
-    A: 'static + SteppingAlg<M> + Send + Sync + Clone,
+    A: 'static + SteppingAlg<M, StdRng> + Send + Sync + Clone,
 {
     fn clone(&self) -> Self {
         Runner {
@@ -40,7 +41,7 @@ where
 impl<M, A> Runner<M, A>
 where
     M: Clone + Sync + Send,
-    A: 'static + SteppingAlg<M> + Send + Sync + Clone,
+    A: 'static + SteppingAlg<M, StdRng> + Send + Sync + Clone,
 {
     pub fn new(stepper: A) -> Runner<M, A> {
         Runner {
@@ -98,56 +99,68 @@ where
     }
 
     /// Run the steppers specified with this config.
-    pub fn run(&self, init_model: M) -> Vec<Vec<(M, A)>>
+    pub fn run(&'static self , init_model: M) -> Vec<Vec<M>>
     where
         M: 'static,
     {
+        let seed = [0; 32];
+        let mut rng: Arc<Box<StdRng>> = Arc::new(Box::new(StdRng::from_seed(seed)));
+
+        let init = init_model;
         let thread_handles: Vec<thread::JoinHandle<_>> = (0..self.n_chains)
             .map(|i| {
                 let n_samples = self.samples;
                 let warmup_steps = self.warmup_steps;
-                let thinning = self.thinning;
-                let stepper = self.stepper.clone();
-                let mut model = init_model.clone();
+                let _thinning = self.thinning;
 
                 thread::Builder::new()
                     .name(format!("sampling thread {}", i))
                     .spawn(move || {
-                        let mut rng = rand::thread_rng();
+                        let mut stepper = self.stepper.clone();
+                        let mut rng = SeedableRng::from_rng(
+                            Arc::make_mut(&mut rng)
+                            ).unwrap();
+                        
+                        // let prior_sample = stepper.prior_sample(&mut rng, init_model);
+                        let prior_sample = init.clone();
+
                         //TODO - Randomly initialize all model values
 
                         // WarmUp
-                        let adapted_stepper: A = stepper.adapt_on();
+                        stepper.set_adapt(AdaptationMode::Enabled);
 
-                        let warmed_stepper = (0..warmup_steps)
-                            .fold(adapted_stepper, |acc, _| {
-                                acc.step(&mut rng, &mut model)
+                        let mut warmup_steps = if self.keep_warmup {
+                            let mp = (0..warmup_steps).fold(prior_sample, |m, _| {
+                                stepper.step(&mut rng, m)
                             });
+                            vec![mp]
+                        } else {
+                            (0..warmup_steps).scan(prior_sample, |m, _| { 
+                                let mc = m.clone();
+                                let mp = stepper.step(&mut rng, mc);
+                                Some(mp)
+                            }).collect()
+                        };
 
                         // Draw the steps from the chain
-                        let stable_stepper: A = warmed_stepper.adapt_off();
+                        stepper.set_adapt(AdaptationMode::Disabled);
 
-                        let steps: Vec<(M, A)> = (0..n_samples)
-                            .scan(
-                                (model, stable_stepper),
-                                |(cur_model, cur_stepper), _| {
-                                    let mut this_model = cur_model.clone();
-                                    *cur_stepper = (0..thinning).fold(
-                                        cur_stepper.clone(),
-                                        |cur, _| {
-                                            cur.step(&mut rng, &mut this_model)
-                                        },
-                                    );
-                                    *cur_model = this_model;
-                                    Some((
-                                        (*cur_model).clone(),
-                                        (*cur_stepper).clone(),
-                                    ))
-                                },
-                            ).collect();
+                        let warmed_model = warmup_steps.last().unwrap().clone();
+                        let steps: Vec<M> = (0..n_samples)
+                            .scan(warmed_model, |m, _| {
+                                let mc = m.clone();
+                                let mp = stepper.step(&mut rng, mc);
+                                Some(mp)
+                            }).collect();
 
-                        steps
-                    }).unwrap()
+                        if self.keep_warmup {
+                            warmup_steps.extend(steps);
+                            warmup_steps
+                        } else {
+                            steps
+                        }
+                    })
+                    .unwrap()
             }).collect();
 
         // get results from threads

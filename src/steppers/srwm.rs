@@ -8,185 +8,268 @@ use rv::dist::{Gaussian, Geometric};
 use rv::traits::{Mean, Rv, Variance};
 
 use parameter::Parameter;
-use traits::*;
+use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode};
+use statistics::Statistic;
+use common::Model;
+
+pub trait RWT: fmt::Debug + Clone + Copy {}
+
+impl RWT for f64 {}
+impl RWT for f32 {}
+impl RWT for u16 {}
+impl RWT for u32 {}
+
 
 /// SRWM Adaption Helper
 #[derive(Clone, Copy, Debug)]
-struct SrwmAdaptor {
+struct SrwmAdaptor<T, V>
+where
+    T: RWT,
+    V: Clone + fmt::Debug,
+{
     // Scale factor *λ*
     log_lambda: f64,
     // Stochastic Mean *μ*
-    mu: f64,
+    mu: T,
     // Stochastic Scale *σ*
-    sigma: f64,
+    sigma: V,
     // Number of adaptation steps.
     step: usize,
     // Scale for proposals.
     pub proposal_scale: f64,
+    // Initial proposal_scale for reset
+    initial_proposal_scale: f64,
+    // initial mean
+    initial_mu: T,
+    // initial variance
+    initial_sigma: V,
     // Alpha to stochastically optimize towards.
     target_alpha: f64,
     // Enables updates or not.
     enabled: bool,
 }
 
-impl SrwmAdaptor {
-    pub fn new(initial_proposal_scale: f64, prior_mean: f64) -> Self {
+impl<T, V> SrwmAdaptor<T, V> 
+where
+    T: RWT,
+    V: Copy + fmt::Debug
+{
+    pub fn new(initial_proposal_scale: f64, prior_mean: T, prior_variance: V) -> Self {
         SrwmAdaptor {
             log_lambda: 0.0,
             mu: prior_mean,
-            sigma: initial_proposal_scale,
+            sigma: prior_variance,
             step: 0,
             proposal_scale: initial_proposal_scale,
             target_alpha: 0.234,
             enabled: false,
+            initial_proposal_scale,
+            initial_mu: prior_mean,
+            initial_sigma: prior_variance,
         }
     }
 
-    pub fn update(&self, alpha: f64, new_value: f64) -> Self {
-        if self.enabled {
-            let g = 0.9 / ((self.step + 1) as f64).powf(0.9);
-            let delta = new_value - self.mu;
-            let bounded_alpha = alpha.min(1.0);
-            let new_log_lambda =
-                self.log_lambda + g * (bounded_alpha - self.target_alpha);
-            let new_mu = self.mu + g * delta;
-            let new_sigma = self.sigma + g * (delta * delta - self.sigma);
-            let new_proposal_scale = new_log_lambda.exp() * new_sigma;
-
-            assert!(
-                new_proposal_scale > 0.0,
-                format!(
-                    "update SrwmAdaptor = {:?}  \
-                        (new_lambda = {}, new_sigma = {})
-                        with alpha = {}, \
-                        new_value = {} \
-                        caused a bad proposal_scale...",
-                    self,
-                    new_log_lambda.exp(),
-                    new_sigma,
-                    alpha,
-                    new_value
-                )
-            );
-
-            SrwmAdaptor {
-                log_lambda: new_log_lambda,
-                mu: new_mu,
-                sigma: new_sigma,
-                step: self.step + 1,
-                proposal_scale: new_proposal_scale,
-                ..*self
-            }
-        } else {
-            *self
-        }
+    pub fn reset(&mut self) {
+        self.log_lambda = 0.0;
+        self.proposal_scale = self.initial_proposal_scale;
+        self.step = 0;
+        self.sigma = self.initial_sigma;
+        self.mu = self.initial_mu;
+        self.enabled = false;
     }
 
-    pub fn enable(&self) -> Self {
-        SrwmAdaptor {
-            enabled: true,
-            ..*self
-        }
+    pub fn enable(&mut self) {
+        self.enabled = true;
     }
-    pub fn disable(&self) -> Self {
-        SrwmAdaptor {
-            enabled: false,
-            ..*self
-        }
+    pub fn disable(&mut self) {
+        self.enabled = false;
     }
+
 }
 
-/// Symmetric Random Walk Metropolis Stepping Algorithm
-pub struct SRWM<D, T, M, L>
-where
-    D: Rv<T> + Variance<f64> + Mean<f64> + Clone,
-    M: Clone + 'static,
-    T: fmt::Debug,
-    L: Fn(&M) -> f64 + Sync + Clone,
-{
-    pub parameter: Parameter<D, T, M>,
-    pub log_likelihood: L,
-    pub current_score: Option<f64>,
-    pub temperature: f64,
-    pub log_acceptance: f64,
-    adaptor: SrwmAdaptor,
-}
+macro_rules! impl_adaptor_float {
+    ($dtype: ty, $vtype: ty) => {
+        impl SrwmAdaptor<$dtype, $vtype> {
+            pub fn update(&mut self, alpha: f64, new_value: $dtype) {
+                if self.enabled {
+                   let g = 0.9 / ((self.step + 1) as f64).powf(0.9);
+                   let delta = new_value - self.mu;
+                   let bounded_alpha = alpha.min(1.0);
+                   let new_log_lambda = self.log_lambda + g * (bounded_alpha - self.target_alpha);
+                   let new_mu = self.mu + (g as $dtype) * delta;
+                   let new_sigma = self.sigma + (g as $vtype) * (((delta * delta) as $vtype) - self.sigma);
+                   let new_proposal_scale = new_log_lambda.exp() * f64::from(new_sigma);
 
-impl<D, T, M, L> SRWM<D, T, M, L>
-where
-    D: Rv<T> + Variance<f64> + Mean<f64> + Clone,
-    M: Clone,
-    T: fmt::Debug,
-    L: Fn(&M) -> f64 + Sync + Clone,
-{
-    pub fn new(
-        parameter: Parameter<D, T, M>,
-        log_likelihood: L,
-        proposal_scale: Option<f64>,
-    ) -> Self {
-        let prior_variance = parameter.prior.variance().unwrap_or(1.0);
-        let prior_mean = parameter.prior.mean().unwrap();
+                   assert!(
+                       new_proposal_scale > 0.0,
+                       format!(
+                           "update SrwmAdaptor = {:?}  \
+                               (new_lambda = {}, new_sigma = {})
+                               with alpha = {}, \
+                               new_value = {} \
+                               caused a bad proposal_scale...",
+                           self,
+                           new_log_lambda.exp(),
+                           new_sigma,
+                           alpha,
+                           new_value
+                       )
+                   );
 
-        let adaptor = SrwmAdaptor::new(
-            proposal_scale.unwrap_or(prior_variance),
-            prior_mean,
-        );
-
-        SRWM {
-            parameter,
-            log_likelihood,
-            current_score: None,
-            temperature: 1.0,
-            log_acceptance: 0.0,
-            adaptor,
-        }
-    }
-}
-
-macro_rules! impl_traits_generic {
-    ($kind: ty) => {
-        impl<D, M, L> Clone for SRWM<D, $kind, M, L>
-        where
-            D: Rv<$kind> + Variance<f64> + Mean<f64> + Clone,
-            M: Clone,
-            L: Fn(&M) -> f64 + Sync + Clone,
-        {
-            fn clone(&self) -> Self {
-                SRWM {
-                   parameter: self.parameter.clone(),
-                   log_likelihood: self.log_likelihood.clone(),
-                   current_score: self.current_score,
-                   temperature: self.temperature,
-                   log_acceptance: self.log_acceptance,
-                   adaptor: self.adaptor,
+                   self.log_lambda = new_log_lambda;
+                   self.mu = new_mu;
+                   self.sigma = new_sigma;
+                   self.step += 1;
+                   self.proposal_scale = new_proposal_scale;
                 }
             }
         }
     };
 }
 
+impl_adaptor_float!(f32, f32);
+impl_adaptor_float!(f64, f64);
+impl_adaptor_float!(u16, f64);
+impl_adaptor_float!(u32, f64);
+
+
+/// Symmetric Random Walk Metropolis Stepping Algorithm
+pub struct SRWM<D, T, V, M, L>
+where
+    D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
+    T: RWT,
+    M: Model,
+    L: Fn(&M) -> f64 + Clone + Sync,
+    V: Clone + fmt::Debug
+{
+    pub parameter: Parameter<D, T, M>,
+    pub log_likelihood: L,
+    pub current_score: Option<f64>,
+    pub temperature: f64,
+    pub log_acceptance: f64,
+    adaptor: SrwmAdaptor<T, V>,
+}
+
+impl <D, T, V, M, L> fmt::Debug for SRWM<D, T, V, M, L>
+where
+    D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
+    T: RWT,
+    M: Model,
+    L: Fn(&M) -> f64 + Clone + Sync,
+    V: Clone + fmt::Debug
+{ 
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SRWM {{ parameter: {:?}, current_score: {:?}, adaptor: {:?} }}", self.parameter, self.current_score, self.adaptor)
+    }
+}
+
+
+impl<D, T, V, M, L> SRWM<D, T, V, M, L>
+where
+    D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
+    T: RWT,
+    M: Model,
+    L: Fn(&M) -> f64 + Clone + Sync,
+    V: Clone + fmt::Debug + Copy
+{
+    pub fn new(
+        parameter: Parameter<D, T, M>,
+        log_likelihood: L,
+        proposal_scale: Option<f64>,
+    ) -> Option<Self> {
+        let prior_variance = parameter.prior.variance()?;
+        let prior_mean = parameter.prior.mean()?;
+
+        let adaptor = SrwmAdaptor::new(
+            proposal_scale.unwrap_or(1.0),
+            prior_mean,
+            prior_variance,
+        );
+
+        Some(SRWM {
+            parameter,
+            log_likelihood,
+            current_score: None,
+            log_acceptance: 0.0,
+            temperature: 1.0,
+            adaptor: adaptor,
+        })
+    }
+}
+
+impl<D, T, V, M, L> Clone for SRWM<D, T, V, M, L>
+where
+        D: Rv<T> + Variance<V> + Mean<T> + Clone + fmt::Debug,
+        T: RWT,
+        M: Model,
+        L: Fn(&M) -> f64 + Clone + Sync,
+        V: Clone + fmt::Debug
+{
+    fn clone(&self) -> Self {
+        SRWM {
+            parameter: self.parameter.clone(),
+            log_likelihood: self.log_likelihood.clone(),
+            current_score: self.current_score,
+            log_acceptance: self.log_acceptance,
+            adaptor: self.adaptor.clone(),
+            temperature: 1.0
+        }
+    }
+}
 
 
 macro_rules! impl_traits_ordinal {
-    ($kind: ty) => {
-        impl_traits_generic!($kind);
-
-        impl<D, M, L> SteppingAlg<M> for SRWM<D, $kind, M, L>
+    ($dtype: ty, $vtype: ty) => {
+        impl<D, M, L, R> SteppingAlg<M, R> for SRWM<D, $dtype, $vtype, M, L>
         where 
-            D: Rv<$kind> + Variance<f64> + Mean<f64> + Clone,
-            M: Clone,
-            L: Fn(&M) -> f64 + Sync + Clone,
+            D: Rv<$dtype> + Variance<$vtype> + Mean<$dtype> + Clone + fmt::Debug,
+            M: Model,
+            L: Fn(&M) -> f64 + Clone + Sync + fmt::Debug,
+            R: Rng
         {
-            fn step<R: Rng>(&self, rng: &mut R, model: &mut M) -> Self {
-                let current_value = self.parameter.lens.get(model);
+            fn set_adapt(&mut self, mode: AdaptationMode) {
+                match mode {
+                    AdaptationMode::Enabled => self.adaptor.enabled = true,
+                    AdaptationMode::Disabled => self.adaptor.enabled = false,
+                };
+            }
+
+            fn get_adapt(&self) -> AdaptationStatus {
+                match self.adaptor.enabled {
+                    true => AdaptationStatus::Enabled,
+                    false => AdaptationStatus::Disabled
+                }
+            }
+
+            fn get_statistics(&self) -> Vec<Statistic<M, R>> {
+                Vec::new()
+            }
+
+            fn reset(&mut self) {
+                self.current_score = None;
+                self.adaptor.reset();
+            }
+
+            /*
+            fn substeppers(&self) -> Option<&Vec<Box<SteppingAlg<M, R>>>> {
+                None
+            }
+
+            fn prior_sample(&self, rng: &mut R, m: M) -> M {
+                self.parameter.draw(&m, &mut rng)
+            }
+            */
+
+            fn step(&mut self, rng: &mut R, model: M) -> M {
+                let current_value = self.parameter.lens.get(&model);
                 let current_score = self.current_score.unwrap_or_else(|| {
-                    (self.log_likelihood)(model) + self.parameter.prior.ln_f(&current_value)
+                    (self.log_likelihood)(&model) + self.parameter.prior.ln_f(&current_value)
                 });
 
                 // propose new value
                 let geom_p = ((4.0 * self.adaptor.proposal_scale * self.adaptor.proposal_scale + 1.0).sqrt() + 1.0) / (2.0 * self.adaptor.proposal_scale * self.adaptor.proposal_scale);
                 let proposal_dist = Geometric::new(geom_p).unwrap();
-                let mag: $kind = proposal_dist.draw(rng);
+                let mag: $dtype = proposal_dist.draw(rng);
 
                 let proposed_new_value = if rng.gen() {
                     current_value + mag
@@ -197,7 +280,7 @@ macro_rules! impl_traits_ordinal {
                         current_value - mag
                     }
                 };
-                let new_model = self.parameter.lens.set(model, proposed_new_value);
+                let new_model = self.parameter.lens.set(&model, proposed_new_value);
                 let prior_score = self.parameter.prior.ln_f(&proposed_new_value);
 
                 // If the prior score is infinite, we've likely moved out of it's support.
@@ -211,61 +294,80 @@ macro_rules! impl_traits_ordinal {
                 let log_alpha = new_score - current_score;
                 let log_u = rng.gen::<f64>().ln();
 
-                if log_u * self.temperature < log_alpha {
-                    let new_adaptor = self.adaptor.update(log_alpha.exp(), proposed_new_value as f64);
-                    // Update Model
-                    self.parameter.lens.set_in_place(model, proposed_new_value);
+                if log_u < log_alpha {
+                    self.adaptor.update(log_alpha.exp(), proposed_new_value);
+                    self.current_score = Some(new_score);
+                    self.log_acceptance = log_alpha;
 
                     // println!("Accepted: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-
-                    // Return the updated model.
-                    SRWM {
-                        current_score: Some(new_score),
-                        log_acceptance: log_alpha,
-                        adaptor: new_adaptor,
-                        ..(*self).clone()
-                    }
+                    // Update Model
+                    new_model
                 } else {
-                    let new_adaptor = self.adaptor.update(log_alpha.exp(), f64::from(current_value));
-
+                    self.adaptor.update(log_alpha.exp(), current_value);
                     // println!("Rejected: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-
                     // Return the same model plus some changes to book-keeping
-                    SRWM {
-                        current_score: Some(current_score),
-                        log_acceptance: log_alpha,
-                        adaptor: new_adaptor,
-                        ..(*self).clone()
-                    }
+                    self.log_acceptance = log_alpha;
+                    model
                 }
             }
-            fn adapt_on(&self) -> Self { SRWM { adaptor: self.adaptor.enable(), ..(*self).clone()} }
-            fn adapt_off(&self) -> Self { SRWM { adaptor: self.adaptor.disable(), ..(*self).clone()} }
         }
     };
 }
 
 macro_rules! impl_traits_continuous {
-    ($kind: ty) => {
-        impl_traits_generic!($kind);
+    ($dtype: ty, $vtype: ty) => {
         
-        impl<D, M, L> SteppingAlg<M> for SRWM<D, $kind, M, L>
+        impl<D, M, L, R> SteppingAlg<M, R> for SRWM<D, $dtype, $vtype, M, L>
         where
-            D: Rv<$kind> + Variance<f64> + Mean<f64> + Clone,
-            M: Clone,
-            L: Fn(&M) -> f64 + Sync + Clone,
+            D: Rv<$dtype> + Variance<$vtype> + Mean<$dtype> + Clone + fmt::Debug,
+            M: Model,
+            L: Fn(&M) -> f64 + Clone + Sync,
+            R: Rng
         {
-            fn step<R: Rng>(&self, rng: &mut R, model: &mut M) -> Self {
-                let current_value = self.parameter.lens.get(model);
+            fn set_adapt(&mut self, mode: AdaptationMode) {
+                match mode {
+                    AdaptationMode::Enabled => self.adaptor.enabled = true,
+                    AdaptationMode::Disabled => self.adaptor.enabled = false,
+                };
+            }
+
+            fn get_adapt(&self) -> AdaptationStatus {
+                match self.adaptor.enabled {
+                    true => AdaptationStatus::Enabled,
+                    false => AdaptationStatus::Disabled
+                }
+            }
+
+            fn get_statistics(&self) -> Vec<Statistic<M, R>> {
+                Vec::new()
+            }
+
+            fn reset(&mut self) {
+                self.current_score = None;
+                self.adaptor.reset();
+            }
+
+            /*
+            fn substeppers(&self) -> Option<&Vec<Box<SteppingAlg<M, R>>>> {
+                None
+            }
+
+            fn prior_sample(&self, rng: &mut R, m: M) -> M {
+                self.parameter.draw(&m, &mut rng)
+            }
+            */
+
+            fn step(&mut self, rng: &mut R, model: M) -> M {
+                let current_value = self.parameter.lens.get(&model);
                 let current_score = self.current_score.unwrap_or_else(|| {
-                    (self.log_likelihood)(model) + self.parameter.prior.ln_f(&current_value)
+                    (self.log_likelihood)(&model) + self.parameter.prior.ln_f(&current_value)
                 });
 
                 // propose new value
                 let proposal_dist = Gaussian::new(f64::from(current_value), self.adaptor.proposal_scale).unwrap();
 
                 let proposed_new_value = proposal_dist.draw(rng);
-                let new_model = self.parameter.lens.set(model, proposed_new_value);
+                let new_model = self.parameter.lens.set(&model, proposed_new_value);
                 let prior_score = self.parameter.prior.ln_f(&proposed_new_value);
 
                 // If the prior score is infinite, we've likely moved out of it's support.
@@ -279,60 +381,29 @@ macro_rules! impl_traits_continuous {
                 let log_alpha = new_score - current_score;
                 let log_u = rng.gen::<f64>().ln();
 
-                if log_u * self.temperature < log_alpha {
-                    let new_adaptor = self.adaptor.update(log_alpha.exp(), f64::from(proposed_new_value));
+                if log_u < log_alpha {
+                    self.adaptor.update(log_alpha.exp(), proposed_new_value);
                     // Update Model
-                    self.parameter.lens.set_in_place(model, proposed_new_value);
-
                     // println!("Accepted: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-
-                    // Return the updated model.
-                    SRWM {
-                        current_score: Some(new_score),
-                        log_acceptance: log_alpha,
-                        adaptor: new_adaptor,
-                        ..(*self).clone()
-                    }
+                    self.current_score = Some(new_score);
+                    self.log_acceptance = log_alpha;
+                    new_model
                 } else {
-                    let new_adaptor = self.adaptor.update(log_alpha.exp(), f64::from(current_value));
-
+                    self.adaptor.update(log_alpha.exp(), current_value);
+                    self.log_acceptance = log_alpha;
                     // println!("Rejected: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-
-                    // Return the same model plus some changes to book-keeping
-                    SRWM {
-                        current_score: Some(current_score),
-                        log_acceptance: log_alpha,
-                        adaptor: new_adaptor,
-                        ..(*self).clone()
-                    }
-                }
-            }
-
-            fn adapt_on(&self) -> Self { SRWM { adaptor: self.adaptor.enable(), ..(*self).clone()} }
-            fn adapt_off(&self) -> Self { SRWM { adaptor: self.adaptor.disable(), ..(*self).clone()} }
-        }
-
-        impl<D, M, L> AnnealingAlg<M> for SRWM<D, $kind, M, L>
-        where
-            D: Rv<$kind> + Variance<f64> + Mean<f64> + Clone,
-            M: Clone,
-            L: Fn(&M) -> f64 + Sync + Clone,
-        {
-            fn set_temperature(&self, t: f64) -> Self {
-                SRWM {
-                    temperature: t,
-                    ..(*self).clone()
+                    model
                 }
             }
         }
     };
 }
 
-impl_traits_continuous!(f32);
-impl_traits_continuous!(f64);
+impl_traits_continuous!(f32, f32);
+impl_traits_continuous!(f64, f64);
 
-impl_traits_ordinal!(u16);
-impl_traits_ordinal!(u32);
+impl_traits_ordinal!(u16, f64);
+impl_traits_ordinal!(u32, f64);
 
 
 #[cfg(test)]
@@ -354,24 +425,27 @@ mod tests {
     #[test]
     fn uniform_posterior_no_warmup() {
         #[derive(Copy, Clone, Debug)]
-        struct Model {
+        struct AModel {
             x: f64,
         }
+
+        impl Model for AModel {}
 
         let parameter = Parameter::new(
             "x".to_string(),
             Uniform::new(-1.0, 1.0).unwrap(),
-            make_lens!(Model, f64, x),
+            make_lens!(AModel, f64, x),
         );
 
-        let log_likelihood =
-            |m: &Model| Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x);
+        fn log_likelihood(m: &AModel) -> f64 {
+            Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x)
+        }
 
-        let alg_start = SRWM::new(parameter, log_likelihood.clone(), Some(0.7));
+        let alg_start = SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap();
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let m = Model { x: 0.0 };
-            let results: Vec<Vec<(Model, _)>> = Runner::new(alg_start.clone())
+            let m = AModel { x: 0.0 };
+            let results: Vec<Vec<AModel>> = Runner::new(alg_start.clone())
                 .warmup(0)
                 .chains(1)
                 .thinning(10)
@@ -380,7 +454,7 @@ mod tests {
             let samples: Vec<f64> = results
                 .iter()
                 .map(|chain| -> Vec<f64> {
-                    chain.iter().map(|g| g.0.x).collect()
+                    chain.iter().map(|g| g.x).collect()
                 }).flatten()
                 .collect();
 
@@ -395,30 +469,33 @@ mod tests {
     #[test]
     fn uniform_posterior_warmup() {
         #[derive(Copy, Clone, Debug)]
-        struct Model {
+        struct AModel {
             x: f64,
         }
+
+        impl Model for AModel {}
 
         let parameter = Parameter::new(
             "x".to_string(),
             Uniform::new(-1.0, 1.0).unwrap(),
-            make_lens!(Model, f64, x),
+            make_lens!(AModel, f64, x),
         );
 
-        let log_likelihood =
-            |m: &Model| Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x);
+        fn log_likelihood(m: &AModel) -> f64 {
+            Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x)
+        }
 
-        let alg_start = SRWM::new(parameter, log_likelihood.clone(), Some(0.7));
+        let alg_start = SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap();
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let m = Model { x: 0.0 };
-            let results: Vec<Vec<(Model, _)>> =
+            let m = AModel { x: 0.0 };
+            let results: Vec<Vec<AModel>> =
                 Runner::new(alg_start.clone()).thinning(10).chains(1).run(m);
 
             let samples: Vec<f64> = results
                 .iter()
                 .map(|chain| -> Vec<f64> {
-                    chain.iter().map(|g| g.0.x).collect()
+                    chain.iter().map(|g| g.x).collect()
                 }).flatten()
                 .collect();
 
@@ -433,30 +510,32 @@ mod tests {
     #[test]
     fn gaussian_likelihood_uniform_prior() {
         #[derive(Copy, Clone, Debug)]
-        struct Model {
+        struct AModel {
             x: f64,
         }
+
+        impl Model for AModel {}
 
         let parameter = Parameter::new(
             "x".to_string(),
             Uniform::new(-10.0, 10.0).unwrap(),
-            make_lens!(Model, f64, x),
+            make_lens!(AModel, f64, x),
         );
 
         let log_likelihood =
-            |m: &Model| Gaussian::new(0.0, 1.0).unwrap().ln_f(&m.x);
+            |m: &AModel| Gaussian::new(0.0, 1.0).unwrap().ln_f(&m.x);
 
-        let alg_start = SRWM::new(parameter, log_likelihood.clone(), Some(0.7));
+        let alg_start = SRWM::new(parameter, log_likelihood.clone(), Some(0.7)).unwrap();
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let m = Model { x: 0.0 };
-            let results: Vec<Vec<(Model, _)>> =
+            let m = AModel { x: 0.0 };
+            let results: Vec<Vec<AModel>> =
                 Runner::new(alg_start.clone()).thinning(10).chains(1).run(m);
 
             let samples: Vec<f64> = results
                 .iter()
                 .map(|chain| -> Vec<f64> {
-                    chain.iter().map(|g| g.0.x).collect()
+                    chain.iter().map(|g| g.x).collect()
                 }).flatten()
                 .collect();
 
@@ -471,9 +550,11 @@ mod tests {
     #[test]
     fn gaussian_fit() {
         #[derive(Copy, Clone, Debug)]
-        struct Model {
+        struct AModel {
             sigma2: f64,
         }
+
+        impl Model for AModel {}
 
         let mut rng = rand::thread_rng();
 
@@ -484,29 +565,29 @@ mod tests {
             let parameter = Parameter::new(
                 "sigma2".to_string(),
                 InvGamma::new(alpha, beta).unwrap(),
-                make_lens!(Model, f64, sigma2),
+                make_lens!(AModel, f64, sigma2),
             );
 
             let data = Gaussian::new(0.0, 3.14).unwrap().sample(10, &mut rng);
 
             let ll_data = data.clone();
-            let log_likelihood = move |m: &Model| {
+            let log_likelihood = move |m: &AModel| {
                 // println!("Likelihood (sigma = {})", m.sigma);
                 let dist = Gaussian::new(0.0, m.sigma2.sqrt()).unwrap();
                 ll_data.iter().map(|x: &f64| -> f64 { dist.ln_f(x) }).sum()
             };
 
             let alg_start =
-                SRWM::new(parameter, log_likelihood.clone(), Some(0.7));
+                SRWM::new(parameter, log_likelihood.clone(), Some(0.7)).unwrap();
 
-            let m = Model { sigma2: 1.0 };
-            let results: Vec<Vec<(Model, _)>> =
+            let m = AModel { sigma2: 1.0 };
+            let results: Vec<Vec<AModel>> =
                 Runner::new(alg_start.clone()).thinning(100).chains(2).run(m);
 
             let samples: Vec<f64> = results
                 .iter()
                 .map(|chain| -> Vec<f64> {
-                    chain.iter().map(|g| g.0.sigma2).collect()
+                    chain.iter().map(|g| g.sigma2).collect()
                 }).flatten()
                 .collect();
 

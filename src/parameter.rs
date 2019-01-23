@@ -4,14 +4,18 @@ use rand::Rng;
 use rv::traits::Rv;
 use std::fmt;
 
-pub struct Parameter<D, T, S>
+/// Parameter Struct
+/// D: Rv Implementation
+/// T: Parameter Type
+/// S: State Type
+pub struct Parameter<R, T, S>
 where
-    D: Rv<T> + Clone,
+    R: Rv<T> + Clone,
 {
     // Name of parameter (must be unique)
     pub name: String,
     // Prior distribution
-    pub prior: D,
+    pub prior: R,
     // Lens to update value
     pub lens: Lens<T, S>,
 }

@@ -16,11 +16,17 @@ travis-ci = { repository = "schmidmt/rmcmc", branch = "master" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
+alga = "0.7.2"
+alga_derive = "0.7.1"
+generic-array = "0.12.0"
+nalgebra = "0.16.13"
 num = "0.2.0"
-rand = "0.5.3"
-special = "0.7.8"
-nalgebra = "0.16.0"
+num-traits = "0.2"
+rand = "0.6.1"
+reduce = "0.1.1"
 rv = "^0.4"
+special = "0.7.8"
+typenum = "1.10.0"
 
 serde = {version = "1.0.70", optional = true}
 serde_derive = {version = "1.0.70", optional = true}
