@@ -14,8 +14,6 @@ extern crate rv;
 
 #[macro_use]
 pub mod lens;
-pub mod common;
-pub mod likelihood;
 pub mod parameter;
 pub mod runner;
 pub mod statistics;

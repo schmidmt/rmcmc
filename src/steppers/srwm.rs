@@ -415,9 +415,6 @@ mod tests {
     use rv::misc::ks_test;
     use rv::prelude::Cdf;
     use utils::multiple_tries;
-    use std::rc::Rc;
-    // use utils;
-    // use std::path::Path;
 
     const P_VAL: f64 = 0.2;
     const N_TRIES: usize = 10;
@@ -439,16 +436,16 @@ mod tests {
             Uniform::new(-1.0, 1.0).unwrap().ln_f(&m.x)
         }
 
-        let alg_start = Rc::new(SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap());
+        let alg_start = SRWM::new(parameter, log_likelihood, Some(0.7)).unwrap();
 
         let passed = multiple_tries(N_TRIES, |_| {
             let m = Model { x: 0.0 };
-            let alg_start = alg_start.clone();
-            let results: Vec<Vec<Model>> = Runner::new(Rc::try_unwrap(alg_start).unwrap())
+            let runner = Runner::new(alg_start.clone())
                 .warmup(0)
                 .chains(1)
-                .thinning(10)
-                .run(m);
+                .thinning(10);
+
+            let results: Vec<Vec<Model>> = runner.run(m);
 
             let samples: Vec<f64> = results
                 .iter()

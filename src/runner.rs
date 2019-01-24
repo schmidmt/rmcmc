@@ -6,9 +6,10 @@ use steppers::{SteppingAlg, AdaptationMode};
 use rand::prelude::*;
 use std::sync::Arc;
 
-pub struct Runner<'a, M, A>
+pub struct Runner<'a, 'm, M, A>
 where
     M: Clone + Send + Sync,
+    M: 'm,
     A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
     A: 'a
 {
@@ -19,10 +20,10 @@ where
     pub samples: usize,
     pub keep_warmup: bool,
     pub thinning: usize,
-    phantom_m: PhantomData<M>,
+    phantom_m: PhantomData<&'m M>,
 }
 
-impl<'a, M, A> Clone for Runner<'a, M, A>
+impl<'a, 'm, M, A> Clone for Runner<'a, 'm, M, A>
 where
     M: Clone + Sync + Send,
     A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
@@ -42,13 +43,13 @@ where
     }
 }
 
-impl<'a, M, A> Runner<'a, M, A>
+impl<'a, 'm, M, A> Runner<'a, 'm, M, A>
 where
     M: Clone + Sync + Send,
     A: SteppingAlg<M, StdRng> + Send + Sync + Clone,
     A: 'a,
 {
-    pub fn new(stepper: A) -> Runner<'a, M, A> {
+    pub fn new(stepper: A) -> Runner<'a, 'm, M, A> {
         Runner {
             stepper,
             phantom_a: PhantomData,
@@ -105,9 +106,9 @@ where
     }
 
     /// Run the steppers specified with this config.
-    pub fn run(&'static self , init_model: M) -> Vec<Vec<M>>
+    pub fn run(&self , init_model: M) -> Vec<Vec<M>>
     where
-        M: 'static,
+        M: 'm,
     {
         let seed = [0; 32];
         let rng = Arc::new(StdRng::from_seed(seed));
@@ -119,11 +120,12 @@ where
                 let _thinning = self.thinning;
                 let rng = rng.clone();
                 let init_model = init_model.clone();
+                let mut stepper = self.stepper.clone();
+                let keep_warmup = self.keep_warmup;
 
                 thread::Builder::new()
                     .name(format!("sampling thread {}", i))
                     .spawn(move || {
-                        let mut stepper = self.stepper.clone();
                         let mut rng = SeedableRng::from_rng(Arc::try_unwrap(rng).unwrap()).unwrap();
                         
                         // let prior_sample = stepper.prior_sample(&mut rng, init_model);
@@ -134,7 +136,7 @@ where
                         // WarmUp
                         stepper.set_adapt(AdaptationMode::Enabled);
 
-                        let mut warmup_steps = if self.keep_warmup {
+                        let mut warmup_steps = if keep_warmup {
                             let mp = (0..warmup_steps).fold(prior_sample, |m, _| {
                                 stepper.step(&mut rng, m)
                             });
@@ -158,7 +160,7 @@ where
                                 Some(mp)
                             }).collect();
 
-                        if self.keep_warmup {
+                        if keep_warmup {
                             warmup_steps.extend(steps);
                             warmup_steps
                         } else {
