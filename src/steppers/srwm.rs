@@ -415,9 +415,11 @@ mod tests {
     use rv::misc::ks_test;
     use rv::prelude::Cdf;
     use utils::multiple_tries;
+    use rand::SeedableRng;
 
     const P_VAL: f64 = 0.2;
     const N_TRIES: usize = 10;
+    const SEED: [u8; 32] = [0; 32];
 
     #[test]
     fn uniform_posterior_no_warmup() {
@@ -425,6 +427,8 @@ mod tests {
         struct Model {
             x: f64,
         }
+
+        let mut rng = rand::rngs::StdRng::from_seed(SEED);
 
         let parameter = Parameter::new(
             "x".to_string(),
@@ -445,7 +449,7 @@ mod tests {
                 .chains(1)
                 .thinning(10);
 
-            let results: Vec<Vec<Model>> = runner.run(m);
+            let results: Vec<Vec<Model>> = runner.run(&mut rng, m);
 
             let samples: Vec<f64> = results
                 .iter()
@@ -469,6 +473,7 @@ mod tests {
             x: f64,
         }
 
+        let mut rng = rand::rngs::StdRng::from_seed(SEED);
 
         let parameter = Parameter::new(
             "x".to_string(),
@@ -485,7 +490,10 @@ mod tests {
         let passed = multiple_tries(N_TRIES, |_| {
             let m = Model { x: 0.0 };
             let results: Vec<Vec<Model>> =
-                Runner::new(alg_start.clone()).thinning(10).chains(1).run(m);
+                Runner::new(alg_start.clone())
+                .thinning(10)
+                .chains(1)
+                .run(&mut rng, m);
 
             let samples: Vec<f64> = results
                 .iter()
@@ -515,6 +523,8 @@ mod tests {
             make_lens!(Model, f64, x),
         );
 
+        let mut rng = rand::rngs::StdRng::from_seed(SEED);
+
         let log_likelihood =
             |m: &Model| Gaussian::new(0.0, 1.0).unwrap().ln_f(&m.x);
 
@@ -523,7 +533,10 @@ mod tests {
         let passed = multiple_tries(N_TRIES, |_| {
             let m = Model { x: 0.0 };
             let results: Vec<Vec<Model>> =
-                Runner::new(alg_start.clone()).thinning(10).chains(1).run(m);
+                Runner::new(alg_start.clone())
+                .thinning(10)
+                .chains(1)
+                .run(&mut rng, m);
 
             let samples: Vec<f64> = results
                 .iter()
@@ -547,12 +560,11 @@ mod tests {
             sigma2: f64,
         }
 
-
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rngs::StdRng::from_seed(SEED);
 
         let passed = multiple_tries(N_TRIES, |_| {
-            let alpha = 2.0;
-            let beta = 2.0;
+            let alpha = 3.0;
+            let beta = 1.0;
 
             let parameter = Parameter::new(
                 "sigma2".to_string(),
@@ -570,11 +582,14 @@ mod tests {
             };
 
             let alg_start =
-                SRWM::new(parameter, log_likelihood.clone(), Some(0.7)).unwrap();
+                SRWM::new(parameter, log_likelihood.clone(), Some(0.7))
+                .expect("Failed to produce a new SRWM");
 
             let m = Model { sigma2: 1.0 };
-            let results: Vec<Vec<Model>> =
-                Runner::new(alg_start.clone()).thinning(100).chains(2).run(m);
+            let results: Vec<Vec<Model>> = Runner::new(alg_start.clone())
+                .thinning(100)
+                .chains(2)
+                .run(&mut rng, m);
 
             let samples: Vec<f64> = results
                 .iter()

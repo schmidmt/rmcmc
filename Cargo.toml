@@ -27,6 +27,7 @@ reduce = "0.1.1"
 rv = "^0.4"
 special = "0.7.8"
 typenum = "1.10.0"
+rayon = "1.0.3"
 
 serde = {version = "1.0.70", optional = true}
 serde_derive = {version = "1.0.70", optional = true}

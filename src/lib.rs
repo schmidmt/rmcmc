@@ -11,6 +11,7 @@ extern crate nalgebra;
 extern crate rand;
 extern crate reduce;
 extern crate rv;
+extern crate rayon;
 
 #[macro_use]
 pub mod lens;

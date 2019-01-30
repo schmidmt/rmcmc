@@ -51,8 +51,10 @@ pub trait SteppingAlg<M, R: Rng>: Debug
 
 mod group;
 mod srwm;
+mod mock;
 // mod kameleon;
 
 pub use self::group::Group;
 pub use self::srwm::SRWM;
+pub use self::mock::Mock;
 // pub use self::kameleon::Kameleon;
