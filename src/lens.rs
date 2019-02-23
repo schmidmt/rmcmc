@@ -68,6 +68,16 @@ macro_rules! make_lens {
     };
 }
 
+#[macro_export]
+macro_rules! make_lens_clone {
+    ($kind: ident, $ptype: ty, $param: ident) => {
+        Lens::new(
+            |s: &$kind| (*s).$param.clone(),
+            |s: &$kind, x: $ptype| $kind { $param: x, ..*s },
+        )
+    };
+}
+
 #[cfg(test)]
 mod tests {
     //extern crate assert;

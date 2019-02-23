@@ -5,6 +5,8 @@ use std::fmt::Debug;
 use rand::Rng;
 use statistics::Statistic;
 
+pub mod util;
+
 #[derive(Copy, Clone, Debug)]
 pub enum AdaptationStatus {
     Enabled,
@@ -49,12 +51,19 @@ pub trait SteppingAlg<M, R: Rng>: Debug
  * }
  */
 
+pub mod adaptor;
 mod group;
 mod srwm;
+// mod binary_gibbs_metropolis;
+mod binary_metropolis;
 mod mock;
+
 // mod kameleon;
 
+// pub use self::adaptor;
 pub use self::group::Group;
 pub use self::srwm::SRWM;
 pub use self::mock::Mock;
+// pub use self::binary_gibbs_metropolis::BinaryGibbsMetropolis;
+pub use self::binary_metropolis::BinaryMetropolis;
 // pub use self::kameleon::Kameleon;

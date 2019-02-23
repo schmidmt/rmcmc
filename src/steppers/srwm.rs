@@ -8,128 +8,11 @@ use rv::dist::{Gaussian, Geometric};
 use rv::traits::{Mean, Rv, Variance};
 
 use parameter::Parameter;
-use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode};
+use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode, util};
 use statistics::Statistic;
+use steppers::adaptor::{ScaleAdaptor, GlobalAdaptor};
 
 pub trait RWT: fmt::Debug + Clone + Copy {}
-
-impl RWT for f64 {}
-impl RWT for f32 {}
-impl RWT for u16 {}
-impl RWT for u32 {}
-
-
-/// SRWM Adaption Helper
-#[derive(Clone, Copy, Debug)]
-struct SrwmAdaptor<T, V>
-where
-    T: RWT,
-    V: Clone + fmt::Debug,
-{
-    // Scale factor *λ*
-    log_lambda: f64,
-    // Stochastic Mean *μ*
-    mu: T,
-    // Stochastic Scale *σ*
-    sigma: V,
-    // Number of adaptation steps.
-    step: usize,
-    // Scale for proposals.
-    pub proposal_scale: f64,
-    // Initial proposal_scale for reset
-    initial_proposal_scale: f64,
-    // initial mean
-    initial_mu: T,
-    // initial variance
-    initial_sigma: V,
-    // Alpha to stochastically optimize towards.
-    target_alpha: f64,
-    // Enables updates or not.
-    enabled: bool,
-}
-
-impl<T, V> SrwmAdaptor<T, V> 
-where
-    T: RWT,
-    V: Copy + fmt::Debug
-{
-    pub fn new(initial_proposal_scale: f64, prior_mean: T, prior_variance: V) -> Self {
-        SrwmAdaptor {
-            log_lambda: 0.0,
-            mu: prior_mean,
-            sigma: prior_variance,
-            step: 0,
-            proposal_scale: initial_proposal_scale,
-            target_alpha: 0.234,
-            enabled: false,
-            initial_proposal_scale,
-            initial_mu: prior_mean,
-            initial_sigma: prior_variance,
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.log_lambda = 0.0;
-        self.proposal_scale = self.initial_proposal_scale;
-        self.step = 0;
-        self.sigma = self.initial_sigma;
-        self.mu = self.initial_mu;
-        self.enabled = false;
-    }
-
-    pub fn enable(&mut self) {
-        self.enabled = true;
-    }
-    pub fn disable(&mut self) {
-        self.enabled = false;
-    }
-
-}
-
-macro_rules! impl_adaptor_float {
-    ($dtype: ty, $vtype: ty) => {
-        impl SrwmAdaptor<$dtype, $vtype> {
-            pub fn update(&mut self, alpha: f64, new_value: $dtype) {
-                if self.enabled {
-                   let g = 0.9 / ((self.step + 1) as f64).powf(0.9);
-                   let delta = new_value - self.mu;
-                   let bounded_alpha = alpha.min(1.0);
-                   let new_log_lambda = self.log_lambda + g * (bounded_alpha - self.target_alpha);
-                   let new_mu = self.mu + (g as $dtype) * delta;
-                   let new_sigma = self.sigma + (g as $vtype) * (((delta * delta) as $vtype) - self.sigma);
-                   let new_proposal_scale = new_log_lambda.exp() * f64::from(new_sigma);
-
-                   assert!(
-                       new_proposal_scale > 0.0,
-                       format!(
-                           "update SrwmAdaptor = {:?}  \
-                               (new_lambda = {}, new_sigma = {})
-                               with alpha = {}, \
-                               new_value = {} \
-                               caused a bad proposal_scale...",
-                           self,
-                           new_log_lambda.exp(),
-                           new_sigma,
-                           alpha,
-                           new_value
-                       )
-                   );
-
-                   self.log_lambda = new_log_lambda;
-                   self.mu = new_mu;
-                   self.sigma = new_sigma;
-                   self.step += 1;
-                   self.proposal_scale = new_proposal_scale;
-                }
-            }
-        }
-    };
-}
-
-impl_adaptor_float!(f32, f32);
-impl_adaptor_float!(f64, f64);
-impl_adaptor_float!(u16, f64);
-impl_adaptor_float!(u32, f64);
 
 
 /// Symmetric Random Walk Metropolis Stepping Algorithm
@@ -146,7 +29,7 @@ where
     pub current_score: Option<f64>,
     pub temperature: f64,
     pub log_acceptance: f64,
-    adaptor: SrwmAdaptor<T, V>,
+    adaptor: GlobalAdaptor<T, V>
 }
 
 impl <D, T, V, M, L> fmt::Debug for SRWM<D, T, V, M, L>
@@ -179,7 +62,7 @@ where
         let prior_variance = parameter.prior.variance()?;
         let prior_mean = parameter.prior.mean()?;
 
-        let adaptor = SrwmAdaptor::new(
+        let adaptor = GlobalAdaptor::new(
             proposal_scale.unwrap_or(1.0),
             prior_mean,
             prior_variance,
@@ -219,6 +102,8 @@ where
 
 macro_rules! impl_traits_ordinal {
     ($dtype: ty, $vtype: ty) => {
+        impl RWT for $dtype {}
+
         impl<D, M, L, R> SteppingAlg<M, R> for SRWM<D, $dtype, $vtype, M, L>
         where 
             D: Rv<$dtype> + Variance<$vtype> + Mean<$dtype> + Clone + fmt::Debug,
@@ -227,17 +112,11 @@ macro_rules! impl_traits_ordinal {
             R: Rng
         {
             fn set_adapt(&mut self, mode: AdaptationMode) {
-                match mode {
-                    AdaptationMode::Enabled => self.adaptor.enable(),
-                    AdaptationMode::Disabled => self.adaptor.disable(),
-                };
+                self.adaptor.set_mode(mode);
             }
 
             fn get_adapt(&self) -> AdaptationStatus {
-                match self.adaptor.enabled {
-                    true => AdaptationStatus::Enabled,
-                    false => AdaptationStatus::Disabled
-                }
+                self.adaptor.get_mode()
             }
 
             fn get_statistics(&self) -> Vec<Statistic<M, R>> {
@@ -291,22 +170,19 @@ macro_rules! impl_traits_ordinal {
                 };
 
                 let log_alpha = new_score - current_score;
-                let log_u = rng.gen::<f64>().ln();
 
-                if log_u < log_alpha {
-                    self.adaptor.update(log_alpha.exp(), proposed_new_value);
-                    self.current_score = Some(new_score);
-                    self.log_acceptance = log_alpha;
-
-                    // println!("Accepted: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-                    // Update Model
-                    new_model
-                } else {
-                    self.adaptor.update(log_alpha.exp(), current_value);
-                    // println!("Rejected: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-                    // Return the same model plus some changes to book-keeping
-                    self.log_acceptance = log_alpha;
-                    model
+                let update = util::metropolis_select(rng, log_alpha, proposed_new_value, current_value);
+                self.adaptor.update(&update);
+                match update{
+                    util::MetroplisUpdate::Accepted(_, _) => {
+                        self.current_score = Some(new_score);
+                        self.log_acceptance = log_alpha;
+                        new_model
+                    },
+                    util::MetroplisUpdate::Rejected(_, _) => {
+                        self.log_acceptance = log_alpha;
+                        model
+                    }
                 }
             }
         }
@@ -316,6 +192,9 @@ macro_rules! impl_traits_ordinal {
 macro_rules! impl_traits_continuous {
     ($dtype: ty, $vtype: ty) => {
         
+        impl RWT for $dtype {}
+
+
         impl<D, M, L, R> SteppingAlg<M, R> for SRWM<D, $dtype, $vtype, M, L>
         where
             D: Rv<$dtype> + Variance<$vtype> + Mean<$dtype> + Clone + fmt::Debug,
@@ -324,17 +203,11 @@ macro_rules! impl_traits_continuous {
             R: Rng
         {
             fn set_adapt(&mut self, mode: AdaptationMode) {
-                match mode {
-                    AdaptationMode::Enabled => self.adaptor.enable(),
-                    AdaptationMode::Disabled => self.adaptor.disable(),
-                };
+                self.adaptor.set_mode(mode)
             }
 
             fn get_adapt(&self) -> AdaptationStatus {
-                match self.adaptor.enabled {
-                    true => AdaptationStatus::Enabled,
-                    false => AdaptationStatus::Disabled
-                }
+                self.adaptor.get_mode()
             }
 
             fn get_statistics(&self) -> Vec<Statistic<M, R>> {
@@ -378,20 +251,19 @@ macro_rules! impl_traits_continuous {
                 };
 
                 let log_alpha = new_score - current_score;
-                let log_u = rng.gen::<f64>().ln();
+                let update = util::metropolis_select(rng, log_alpha, proposed_new_value, current_value);
+                self.adaptor.update(&update);
 
-                if log_u < log_alpha {
-                    self.adaptor.update(log_alpha.exp(), proposed_new_value);
-                    // Update Model
-                    // println!("Accepted: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-                    self.current_score = Some(new_score);
-                    self.log_acceptance = log_alpha;
-                    new_model
-                } else {
-                    self.adaptor.update(log_alpha.exp(), current_value);
-                    self.log_acceptance = log_alpha;
-                    // println!("Rejected: {} -> {} ({})", current_value, proposed_new_value, log_alpha.exp());
-                    model
+                match update { 
+                    util::MetroplisUpdate::Accepted(_, _) => {
+                        self.current_score = Some(new_score);
+                        self.log_acceptance = log_alpha;
+                        new_model
+                    },
+                    util::MetroplisUpdate::Rejected(_, _) => {
+                        self.log_acceptance = log_alpha;
+                        model
+                    }
                 }
             }
         }
@@ -457,6 +329,9 @@ mod tests {
                     chain.iter().map(|g| g.x).collect()
                 }).flatten()
                 .collect();
+            
+            println!("{:?}", samples);
+
 
             let (stat, p) =
                 ks_test(&samples, |s| Uniform::new(-1.0, 1.0).unwrap().cdf(&s));
@@ -616,5 +491,4 @@ mod tests {
         });
         assert!(passed);
     }
-
 }
