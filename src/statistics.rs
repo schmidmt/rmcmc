@@ -6,6 +6,6 @@ pub enum StatisticValue {
 }
 
 pub struct Statistic<M, R> {
-    steppers: Box<SteppingAlg<M, R>>,
+    steppers: Box<dyn SteppingAlg<M, R>>,
     value: StatisticValue
 }

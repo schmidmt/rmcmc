@@ -1,7 +1,7 @@
 use steppers::util::MetroplisUpdate;
 use steppers::{AdaptationStatus, AdaptationMode};
 
-pub trait ScaleAdaptor<T>
+pub trait ScaleAdaptor<T>: Clone
 where
     T: Clone
 {

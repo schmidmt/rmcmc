@@ -13,9 +13,9 @@ pub fn draw_from_stepper<M, A, R>(
     keep_warmup: bool,
 ) -> Vec<M> 
 where
-    M: Clone + Sync + Send,
-    A: SteppingAlg<M, R> + Send + Sync + Clone,
-    R: SeedableRng + Rng + std::fmt::Debug,
+    M: 'static + Clone + Sync + Send,
+    A: 'static + SteppingAlg<M, R> + Send + Sync + Clone,
+    R: 'static + SeedableRng + Rng + std::fmt::Debug,
 {
     let mut rng = SeedableRng::from_rng(
         rng.write()
@@ -77,7 +77,6 @@ where
 mod test {
     extern crate test;
     use super::*;
-    use runner::Runner;
     use rand::SeedableRng;
     use std::sync::{Arc, RwLock};
     use steppers::Mock;

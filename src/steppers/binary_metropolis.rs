@@ -8,8 +8,7 @@ use rand::Rng;
 use rv::traits::Rv;
 use parameter::Parameter;
 
-use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode, util};
-use statistics::Statistic;
+use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode, util, ModelWithScore};
 use steppers::adaptor::{ScaleAdaptor, SimpleAdaptor};
 
 
@@ -23,7 +22,7 @@ where
 {
     pub parameter: Parameter<D, T, M>,
     pub log_likelihood: L,
-    pub current_score: Option<f64>,
+    pub score: Option<f64>,
     adaptor: SimpleAdaptor<T>,
 }
 
@@ -41,8 +40,6 @@ where
     }
 }
     
-
-
 impl<D, T, M, L> BinaryMetropolis<D, T, M, L> 
 where
     D: Rv<T> + Clone + fmt::Debug,
@@ -58,7 +55,7 @@ where
         Some(Self {
             parameter,
             log_likelihood,
-            current_score: None,
+            score: None,
             adaptor
         })
     }
@@ -67,24 +64,21 @@ where
 
 impl<D, L, M, R> SteppingAlg<M, R> for BinaryMetropolis<D, Vec<bool>, M, L>
 where
-    D: Rv<Vec<bool>> + Clone + fmt::Debug,
+    D: 'static + Rv<Vec<bool>> + Clone + fmt::Debug,
     M: 'static + Clone + fmt::Debug,
-    L: Fn(&M) -> f64 + Clone + Sync,
-    R: Rng,
+    L: 'static + Fn(&M) -> f64 + Clone + Sync,
+    R: 'static + Rng,
 {
     fn set_adapt(&mut self, _mode: AdaptationMode) {}
     fn get_adapt(&self) -> AdaptationStatus {
         self.adaptor.get_mode()
-    }
-    fn get_statistics(&self) -> Vec<Statistic<M, R>> {
-        Vec::new()
     }
     fn reset(&mut self) {}
 
     fn step(&mut self, rng: &mut R, model: M) -> M {
         let p = 1.0 - (0.5f64).powf(self.adaptor.get_scale());
         let mut m = model.clone();
-        let mut log_p = match self.current_score {
+        let mut log_p = match self.score {
             Some(p) => p,
             None => (self.log_likelihood)(&model)
         };
@@ -108,9 +102,23 @@ where
             }
         });
 
-        self.current_score = Some(log_p);
+        self.score = Some(log_p);
         self.parameter.lens.set_in_place(&mut m, value);
         m
+    }
+
+    fn step_with_score(&mut self, rng: &mut R, model_with_score: ModelWithScore<M>) -> ModelWithScore<M> {
+        self.score = model_with_score.score;
+        let new_model = self.step(rng, model_with_score.model);
+        ModelWithScore::new(new_model, self.score.unwrap())
+    }
+
+    fn box_clone(&self) -> Box<SteppingAlg<M, R>> {
+        Box::new(self.clone())
+    }
+
+    fn prior_draw(&self, rng: &mut R, model: M) -> M {
+        self.parameter.draw(&model, rng)
     }
 }
 
@@ -140,14 +148,8 @@ mod tests {
         struct Model {
             p: Vec<bool>,
         }
-
         let dims = 30;
-
         let dist = MultiRv::new(dims, Bernoulli::new(0.5).unwrap());
-        let lens = Lens::new(
-            |s: &Model| s.p.clone(),
-            |s: &Model, x: Vec<bool>| Model { p: x, ..*s }
-        );
 
         let parameter = Parameter::new(
             "p".to_string(),

@@ -2,7 +2,6 @@
 #![feature(test)]
 
 #[cfg(feature = "serde_support")]
-#[macro_use]
 extern crate serde_derive;
 
 extern crate alga;
@@ -12,12 +11,18 @@ extern crate rand;
 extern crate reduce;
 extern crate rv;
 extern crate rayon;
+extern crate num;
+extern crate itertools;
 
-#[macro_use]
-pub mod lens;
-pub mod parameter;
-pub mod runner;
-pub mod statistics;
+#[macro_use] mod lens;
+pub use lens::*;
+
+mod parameter;
+pub use parameter::*;
+
+mod runner;
+pub use runner::*;
+
 pub mod steppers;
-pub mod summary;
 pub mod utils;
+pub mod diagnostics;

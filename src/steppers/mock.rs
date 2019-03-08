@@ -1,7 +1,6 @@
 
 use std::fmt;
-use steppers::{SteppingAlg, AdaptationMode, AdaptationStatus};
-use statistics::Statistic;
+use steppers::{SteppingAlg, AdaptationMode, AdaptationStatus, ModelWithScore};
 
 #[derive(Clone)]
 pub struct Mock<M, F> 
@@ -39,12 +38,16 @@ where
 
 impl<M, F, R> SteppingAlg<M, R> for Mock<M, F>
 where
-    M: Clone,
-    R: rand::RngCore,
-    F: Fn(M) -> M
+    M: 'static + Clone,
+    R: 'static + rand::RngCore,
+    F: 'static + Fn(M) -> M + Clone
 {
     fn step(&mut self, _rng: &mut R, model: M) -> M {
         (self.update)(model)
+    }
+
+    fn step_with_score(&mut self, _rng: &mut R, model_with_score: ModelWithScore<M>) -> ModelWithScore<M> {
+        model_with_score
     }
 
     fn set_adapt(&mut self, _mode: AdaptationMode) {}
@@ -52,11 +55,15 @@ where
         AdaptationStatus::Disabled
     }
 
-    fn get_statistics(&self) -> Vec<Statistic<M, R>> {
-        Vec::new()
+    fn reset(&mut self) {}
+
+    fn box_clone(&self) -> Box<SteppingAlg<M, R>> {
+        Box::new(self.clone())
     }
 
-    fn reset(&mut self) {}
+    fn prior_draw(&self, _rng: &mut R, model: M) -> M {
+        model
+    }
 }
 
 #[cfg(test)]

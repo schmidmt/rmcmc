@@ -55,9 +55,10 @@ where
     }
 
     fn get_mode(&self) -> AdaptationStatus {
-        match self.enabled {
-            true => AdaptationStatus::Enabled,
-            false  => AdaptationStatus::Disabled,
+        if self.enabled {
+            AdaptationStatus::Enabled
+        } else {
+            AdaptationStatus::Disabled
         }
     }
 

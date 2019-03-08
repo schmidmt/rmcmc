@@ -7,7 +7,7 @@
 /// # Example
 /// ```
 /// #[macro_use] extern crate rmcmc;
-/// # use rmcmc::lens::*;
+/// # use rmcmc::*;
 ///
 /// # fn main() {
 /// struct Foo {

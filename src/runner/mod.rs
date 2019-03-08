@@ -11,9 +11,9 @@ pub mod utils;
 
 pub struct Runner<M, A, R>
 where
-    M: Clone + Send + Sync,
-    A: SteppingAlg<M, R> + Send + Sync + Clone,
-    R: SeedableRng + Rng,
+    M: 'static + Clone + Send + Sync,
+    A: 'static + SteppingAlg<M, R> + Send + Sync + Clone,
+    R: 'static + SeedableRng + Rng,
 {
     pub stepper: A,
     pub n_chains: usize,
@@ -107,7 +107,7 @@ where
     pub fn thinning(&self, thinning: usize) -> Self {
         assert!(thinning > 0, "thinning must be greater than 0.");
         Runner {
-            thinning: thinning,
+            thinning,
             ..(*self).clone()
         }
     }
