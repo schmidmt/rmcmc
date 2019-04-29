@@ -70,30 +70,75 @@ where
     }
 
     fn update(&mut self, update: &MetroplisUpdate<T>) {
-        let alpha = match update {
-            MetroplisUpdate::Accepted(_, a) => a,
-            MetroplisUpdate::Rejected(_, a) => a,
-        };
-        self.alpha_sum += *alpha;
+        if self.enabled {
+            self.n_updates += 1;
+            let alpha = match update {
+                MetroplisUpdate::Accepted(_, a) => a.exp(),
+                MetroplisUpdate::Rejected(_, a) => a.exp(),
+            };
+            self.alpha_sum += alpha;
 
-        if self.n_updates >= self.adapt_interval {
-            let alpha_mean: f64 = self.alpha_sum / (self.n_updates as f64);
-            if alpha_mean < 0.001 {
-                self.scale *= 0.01;
-            } else if alpha_mean < 0.05 {
-                self.scale *= 0.5;
-            } else if alpha_mean < 0.2 {
-                self.scale *= 0.2;
-            } else if alpha_mean > 0.95 {
-                self.scale *= 10.0;
-            } else if alpha_mean > 0.75 {
-                self.scale *= 2.0;
-            } else if alpha_mean > 0.5 {
-                self.scale *= 1.1;
+            if self.n_updates >= self.adapt_interval {
+                let alpha_mean: f64 = self.alpha_sum / (self.n_updates as f64);
+                if alpha_mean < 0.001 {
+                    self.scale *= 0.01;
+                } else if alpha_mean < 0.05 {
+                    self.scale *= 0.5;
+                } else if alpha_mean < 0.2 {
+                    self.scale *= 0.2;
+                } else if alpha_mean > 0.95 {
+                    self.scale *= 10.0;
+                } else if alpha_mean > 0.75 {
+                    self.scale *= 2.0;
+                } else if alpha_mean > 0.5 {
+                    self.scale *= 1.1;
+                }
+
+                self.n_updates = 0;
+                self.alpha_sum = 0.0;
             }
-
-            self.n_updates = 0;
-            self.alpha_sum = 0.0;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate test;
+    use super::*;
+
+    #[test]
+    fn should_increase_scale_with_too_high_alpha() {
+        let mut adaptor = SimpleAdaptor::new(1.0, 10);
+        adaptor.set_mode(AdaptationMode::Enabled);
+        assert_eq!(adaptor.get_scale(), 1.0);
+
+        for _ in 0..100 {
+            adaptor.update(&MetroplisUpdate::Accepted(1, 0.5));
+        }
+        assert!(adaptor.get_scale() > 1.0);
+    }
+
+    #[test]
+    fn should_decrease_scale_with_too_low_alpha() {
+        let mut adaptor = SimpleAdaptor::new(1.0, 10);
+        adaptor.set_mode(AdaptationMode::Enabled);
+        assert_eq!(adaptor.get_scale(), 1.0);
+
+        for _ in 0..100 {
+            adaptor.update(&MetroplisUpdate::Accepted(1, 0.1));
+        }
+        assert!(adaptor.get_scale() > 1.0);
+    }
+
+    #[test]
+    fn should_return_expected_scaling() {
+        let mut adaptor = SimpleAdaptor::new(1.0, 10);
+        adaptor.set_mode(AdaptationMode::Enabled);
+        assert_eq!(adaptor.get_scale(), 1.0);
+
+        for _ in 0..100 {
+            adaptor.update(&MetroplisUpdate::Accepted(1, 0.51_f64.ln()));
+        }
+        assert::close(adaptor.get_scale(), 1.1_f64.powi(10), 1E-12);
     }
 }

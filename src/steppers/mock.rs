@@ -1,6 +1,7 @@
 
 use std::fmt;
-use steppers::{SteppingAlg, AdaptationMode, AdaptationStatus, ModelWithScore};
+use steppers::{SteppingAlg, AdaptationMode, AdaptationStatus, ModelAndLikelihood};
+use rand::Rng;
 
 #[derive(Clone)]
 pub struct Mock<M, F> 
@@ -10,9 +11,10 @@ where
 {
     model: M,
     update: F,
+    adapt: bool,
 }
 
-impl<M, F> Mock< M, F> 
+impl<M, F> Mock<M, F> 
 where
     M: Clone,
     F: Fn(M) -> M
@@ -20,7 +22,8 @@ where
     pub fn new(model: M, update: F) -> Mock<M, F> {
         Mock {
             model,
-            update
+            update,
+            adapt: false
         }
     }
 }
@@ -39,15 +42,15 @@ where
 impl<M, F, R> SteppingAlg<M, R> for Mock<M, F>
 where
     M: 'static + Clone,
-    R: 'static + rand::RngCore,
-    F: 'static + Fn(M) -> M + Clone
+    F: 'static + Fn(M) -> M + Clone,
+    R: 'static + Rng
 {
     fn step(&mut self, _rng: &mut R, model: M) -> M {
         (self.update)(model)
     }
 
-    fn step_with_score(&mut self, _rng: &mut R, model_with_score: ModelWithScore<M>) -> ModelWithScore<M> {
-        model_with_score
+    fn step_with_loglikelihood(&mut self, _rng: &mut R, model: M, loglikelihood: Option<f64>) -> ModelAndLikelihood<M> {
+        ModelAndLikelihood::new(model, loglikelihood)
     }
 
     fn set_adapt(&mut self, _mode: AdaptationMode) {}
@@ -68,9 +71,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
     use super::*;
-    use runner::Runner;
     use rand::SeedableRng;
     const SEED: [u8; 32] = [0; 32];
 

@@ -124,7 +124,7 @@ where
     L: Fn(&M) -> f64 + Sync + Clone
 {
     pub parameter: Parameter<R, Vector<N, D, S>, M>,
-    pub log_likelihood: L,
+    pub loglikelihood: L,
     pub current_score: Option<f64>,
     pub temperature: f64,
     pub log_acceptance: f64,
@@ -143,11 +143,11 @@ where
 {
     pub fn new(
         parameter: Parameter<R, Vector<N, D, S>, M>,
-        log_likelihood: L
+        loglikelihood: L
     ) -> Self {
         Kameleon {
             parameter,
-            log_likelihood,
+            loglikelihood,
             current_score: None,
             temperature: 1.0,
             log_acceptance: 0.0,
@@ -159,7 +159,7 @@ where
 
 macro_rules! impl_traits {
     ($kind: ty) => {
-        impl<R, D, S, SV, M, L> SteppingAlg<M> for Kameleon<R, $kind, D, S, SV, M, L>
+        impl<R, D, S, SV, M, L> SteppingAlg<'a, M, R> for Kameleon<R, $kind, D, S, SV, M, L>
         where
             R: Rv<Vector<$kind, D, S>> + Variance<SquareMatrix<$kind, D, SV>> + Mean<Vector<$kind, D, S>> + Clone,
             D: Dim,
@@ -185,7 +185,7 @@ macro_rules! impl_traits {
             fn clone(&self) -> Self {
                 Kameleon {
                     parameter: self.parameter.clone(),
-                    log_likelihood: self.log_likelihood.clone(),
+                    loglikelihood: self.loglikelihood.clone(),
                     current_score: self.current_score,
                     temperature: self.temperature,
                     log_acceptance: self.log_acceptance,

@@ -1,5 +1,4 @@
 use steppers::util::MetroplisUpdate;
-use steppers::{AdaptationStatus, AdaptationMode};
 
 pub trait ScaleAdaptor<T>: Clone
 where
@@ -14,6 +13,8 @@ where
 
 mod global;
 mod simple;
+mod states;
 
+pub use self::states::*;
 pub use self::simple::*;
 pub use self::global::*;

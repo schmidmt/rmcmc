@@ -15,7 +15,7 @@ pub fn draw_from_stepper<M, A, R>(
 where
     M: 'static + Clone + Sync + Send,
     A: 'static + SteppingAlg<M, R> + Send + Sync + Clone,
-    R: 'static + SeedableRng + Rng + std::fmt::Debug,
+    R: 'static + SeedableRng + Rng,
 {
     let mut rng = SeedableRng::from_rng(
         rng.write()
@@ -23,12 +23,8 @@ where
         .deref_mut()
     ).expect("Failed to create seedable rng from input rng.");
 
-
     let mut stepper = stepper.clone();
-    // let prior_sample = stepper.prior_sample(&mut rng, init_model);
-    let prior_sample = init;
-
-    //TODO - Randomly initialize all model values
+    let prior_sample = stepper.prior_draw(&mut rng, init);
 
     // WarmUp
     stepper.set_adapt(AdaptationMode::Enabled);

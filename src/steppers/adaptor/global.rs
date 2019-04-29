@@ -102,14 +102,13 @@ where
             let alpha = log_alpha.exp();
             let g: T = T::from(0.9 / f64::from_usize(self.step + 1).unwrap().powf(0.9)).unwrap();
             let delta: T = *new_value - self.mu;
-            let bounded_alpha = alpha.min(1.0);
-            let new_log_lambda = self.log_lambda + g.to_f64().unwrap() * (bounded_alpha - self.target_alpha);
+            let new_log_lambda = self.log_lambda + g.to_f64().unwrap() * (alpha - self.target_alpha);
             let new_mu = self.mu + g * delta;
             let new_sigma = self.scale + g * ((delta * delta) - self.scale);
             let new_proposal_scale = T::from(new_log_lambda.exp()).unwrap() * new_sigma;
 
             assert!(
-                new_proposal_scale > T::zero(),
+                new_proposal_scale > T::zero() && T::is_normal(new_proposal_scale),
                 format!(
                     "update SrwmAdaptor = {:?}  \
                         (new_lambda = {}, new_sigma = {})

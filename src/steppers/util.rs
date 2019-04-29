@@ -18,19 +18,21 @@ where
 ///
 /// # Parameters
 /// * `rng` random number generator
-/// * `log_likelihood_delta` Difference between current and posposed log_likelihoods.
+/// * `loglikelihood_delta` Difference between current and posposed loglikelihoods.
 /// * `proposed` Candidate new model
 /// * `current` Current value
 pub fn metropolis_select<M: Clone, R: Rng>(
     rng: &mut R,
-    log_likelihood_delta: f64,
+    loglikelihood_delta: f64,
     proposed: M,
     current: M
 ) -> MetroplisUpdate<M> {
-
-    if rng.gen::<f64>().ln() < log_likelihood_delta {
-        MetroplisUpdate::Accepted(proposed, log_likelihood_delta)
+    assert!(!loglikelihood_delta.is_nan(), "metropolis_select cannot be given a log_likelihood_delta of NAN");
+    let lll = loglikelihood_delta.min(0.0);
+    
+    if lll == 0.0 || rng.gen::<f64>().ln() < loglikelihood_delta {
+        MetroplisUpdate::Accepted(proposed, lll)
     } else {
-        MetroplisUpdate::Rejected(current, log_likelihood_delta)
+        MetroplisUpdate::Rejected(current, lll)
     }
 }

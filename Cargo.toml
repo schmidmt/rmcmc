@@ -24,12 +24,11 @@ num = "0.2.0"
 num-traits = "0.2"
 rand = "0.6.1"
 reduce = "0.1.1"
-rv = { path = "/home/schmidmt/code/rv" }
+rv = { git = "https://gitlab.com/baxe/rv.git", branch = "dev" }
 special = "0.7.8"
 typenum = "1.10.0"
 rayon = "1.0.3"
 itertools = "0.8.0"
-
 serde = {version = "1.0.70", optional = true}
 serde_derive = {version = "1.0.70", optional = true}
 

@@ -1,5 +1,6 @@
-#![feature(associated_type_defaults)]
-#![feature(test)]
+//#![feature(associated_type_defaults)]
+//#![feature(test)]
+//#![feature(proc_macro_hygiene)]
 
 #[cfg(feature = "serde_support")]
 extern crate serde_derive;

@@ -37,6 +37,7 @@ impl<T, S> Clone for Lens<T, S> {
     }
 }
 
+
 impl<T, S> Lens<T, S> {
     pub fn new(get: fn(&S) -> T, set: fn(&S, T) -> S) -> Self {
         Lens {

@@ -8,7 +8,7 @@ use rand::Rng;
 use rv::traits::Rv;
 use parameter::Parameter;
 
-use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode, util, ModelWithScore};
+use steppers::{SteppingAlg, AdaptationStatus, AdaptationMode, util, ModelAndLikelihood};
 use steppers::adaptor::{ScaleAdaptor, SimpleAdaptor};
 
 
@@ -21,8 +21,9 @@ where
     L: Fn(&M) -> f64 + Clone + Sync
 {
     pub parameter: Parameter<D, T, M>,
-    pub log_likelihood: L,
-    pub score: Option<f64>,
+    loglikelihood: L,
+    current_loglikelihood_score: Option<f64>,
+    current_prior_score: Option<f64>,
     adaptor: SimpleAdaptor<T>,
 }
 
@@ -49,20 +50,21 @@ where
 {
     pub fn new(
         parameter: Parameter<D, T, M>,
-        log_likelihood: L
+        loglikelihood: L
     ) -> Option<Self> {
         let adaptor = SimpleAdaptor::new(0.5, 50);
         Some(Self {
             parameter,
-            log_likelihood,
-            score: None,
+            loglikelihood,
+            current_loglikelihood_score: None,
+            current_prior_score: None,
             adaptor
         })
     }
 }
 
 
-impl<D, L, M, R> SteppingAlg<M, R> for BinaryMetropolis<D, Vec<bool>, M, L>
+impl<D, L, M, R> SteppingAlg<'a, M, R> for BinaryMetropolis<D, Vec<bool>, M, L>
 where
     D: 'static + Rv<Vec<bool>> + Clone + fmt::Debug,
     M: 'static + Clone + fmt::Debug,
@@ -78,9 +80,10 @@ where
     fn step(&mut self, rng: &mut R, model: M) -> M {
         let p = 1.0 - (0.5f64).powf(self.adaptor.get_scale());
         let mut m = model.clone();
-        let mut log_p = match self.score {
+
+        let mut log_p = match self.loglikelihood {
             Some(p) => p,
-            None => (self.log_likelihood)(&model)
+            None => (self.loglikelihood)(&model)
         };
         let mut value = self.parameter.lens.get(&model);
         (0..value.len()).for_each(|idx| {
@@ -88,7 +91,7 @@ where
                 let mut proposed_value = value.clone();
                 proposed_value[idx] = !proposed_value[idx];
                 self.parameter.lens.set_in_place(&mut m, proposed_value.clone());
-                let proposed_log_p = (self.log_likelihood)(&m);
+                let proposed_log_p = (self.loglikelihood)(&m);
                 
                 let update = util::metropolis_select(rng, proposed_log_p - log_p, proposed_value.clone(), value.clone());
                 self.adaptor.update(&update);
@@ -107,13 +110,13 @@ where
         m
     }
 
-    fn step_with_score(&mut self, rng: &mut R, model_with_score: ModelWithScore<M>) -> ModelWithScore<M> {
-        self.score = model_with_score.score;
-        let new_model = self.step(rng, model_with_score.model);
-        ModelWithScore::new(new_model, self.score.unwrap())
+    fn step_with_loglikelihood(&mut self, rng: &mut R, model: M, loglikelihood: Option<f64>) -> (M, Option<f64>) {
+        self.score = model_with_loglikelihood.score;
+        let new_model = self.step(rng, model_with_loglikelihood.model);
+        ModelAndLikelihood::new(new_model, self.score)
     }
 
-    fn box_clone(&self) -> Box<SteppingAlg<M, R>> {
+    fn box_clone(&self) -> Box<SteppingAlg<'a, M, R>> {
         Box::new(self.clone())
     }
 
@@ -172,7 +175,7 @@ mod tests {
             }).collect();
 
             // Log Likelihood Calculation
-            let log_likelihood = move |m: &Model| {
+            let loglikelihood = move |m: &Model| {
                 m.p.iter().zip(samples.iter()).map(|(&a, y)| {
                     if a {
                         g1.ln_f(y)
@@ -183,7 +186,7 @@ mod tests {
             };
 
             // Create algorithm and run sampler
-            let alg = BinaryMetropolis::new(parameter, log_likelihood).unwrap();
+            let alg = BinaryMetropolis::new(parameter, loglikelihood).unwrap();
             let m = Model { p: dist.draw(&mut rng) };
             
             let runner = Runner::new(alg)
