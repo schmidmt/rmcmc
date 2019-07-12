@@ -1,13 +1,21 @@
-use steppers::util::MetroplisUpdate;
+//! # Adaptors for hyper-parameter auto-tuning
 
+use crate::steppers::metropolis_hastings_utils::MetropolisUpdate;
+
+/// An adaptor that adapts the proposal scale
 pub trait ScaleAdaptor<T>: Clone
 where
-    T: Clone
+    T: Clone,
 {
-    fn update(&mut self, update: &MetroplisUpdate<T>);
-    fn get_scale(&self) -> f64;
+    /// Update this adaptor with the given update action
+    fn update(&mut self, update: &MetropolisUpdate<T>);
+    /// Get the scale of the current adaptor
+    fn scale(&self) -> f64;
+    /// Set mode of the adaptor to `mode`
     fn set_mode(&mut self, mode: AdaptationMode);
-    fn get_mode(&self) -> AdaptationStatus;
+    /// Get the current adaptor's mode
+    fn mode(&self) -> AdaptationStatus;
+    /// Reset to default inner values
     fn reset(&mut self);
 }
 
@@ -15,6 +23,6 @@ mod global;
 mod simple;
 mod states;
 
-pub use self::states::*;
-pub use self::simple::*;
 pub use self::global::*;
+pub use self::simple::*;
+pub use self::states::*;

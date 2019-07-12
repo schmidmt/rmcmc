@@ -1,46 +1,35 @@
-use steppers::{SteppingAlg, AdaptationMode};
-use rand::prelude::*;
-use std::sync::{Arc, RwLock};
-use std::ops::DerefMut;
+use crate::steppers::{AdaptationMode, SteppingAlg};
 
-pub fn draw_from_stepper<M, A, R>(
-    rng: Arc<RwLock<&mut R>>,
+#[doc(hidden)]
+pub fn draw_from_stepper<'a, M, A>(
     stepper: A,
     init: M,
     n_draws: usize,
     n_warmup: usize,
     thinning: usize,
     keep_warmup: bool,
-) -> Vec<M> 
+) -> Vec<M>
 where
-    M: 'static + Clone + Sync + Send,
-    A: 'static + SteppingAlg<M, R> + Send + Sync + Clone,
-    R: 'static + SeedableRng + Rng,
+    M: Clone + Sync + Send,
+    A: SteppingAlg<M> + Send + Sync,
 {
-    let mut rng = SeedableRng::from_rng(
-        rng.write()
-        .expect("Failed to get write access to rng")
-        .deref_mut()
-    ).expect("Failed to create seedable rng from input rng.");
+    let mut stepper = stepper;
 
-    let mut stepper = stepper.clone();
-    let prior_sample = stepper.prior_draw(&mut rng, init);
+    let prior_sample = stepper.prior_draw(init);
 
     // WarmUp
     stepper.set_adapt(AdaptationMode::Enabled);
 
     let mut warmup_draws = if keep_warmup {
         (0..n_warmup)
-            .scan(prior_sample.clone(), |m, _| { 
-                *m = stepper.step(&mut rng, (*m).clone());
+            .scan(prior_sample.clone(), |m, _| {
+                *m = stepper.step((*m).clone());
                 Some(m.clone())
-            }).collect()
-   
+            })
+            .collect()
     } else {
-        let mp = (0..n_warmup)
-            .fold(prior_sample.clone(), |m, _| {
-                stepper.step(&mut rng, m)
-            });
+        let mp =
+            (0..n_warmup).fold(prior_sample.clone(), |m, _| stepper.step(m));
         vec![mp]
     };
 
@@ -55,12 +44,12 @@ where
 
     let draws: Vec<M> = (0..(n_draws * thinning))
         .scan(warmed_model, |m, _| {
-            *m = stepper.step(&mut rng, (*m).clone());
+            *m = stepper.step((*m).clone());
             Some(m.clone())
         })
         .step_by(thinning)
         .collect();
-    
+
     if keep_warmup {
         warmup_draws.extend(draws);
         warmup_draws
@@ -71,33 +60,10 @@ where
 
 #[cfg(test)]
 mod test {
-    extern crate test;
+    /*
     use super::*;
     use rand::SeedableRng;
     use std::sync::{Arc, RwLock};
-    use steppers::Mock;
     const SEED: [u8; 32] = [0; 32];
-
-    #[test]
-    fn draw_from_stepper_returns_sequence_with_mock_sampler() {
-        let init: i32 = 0;
-        let update = |x: i32| x + 1;
-        let alg_start = Mock::new(init, update);
-        let mut rng = rand::rngs::StdRng::from_seed(SEED);
-
-        let results = draw_from_stepper(
-            Arc::new(RwLock::new(&mut rng)),
-            alg_start,
-            init,
-            10,
-            10,
-            1,
-            true
-        );
-
-        assert_eq!(results.len(), 20);
-        let expected: Vec<i32> = (1..21).collect();
-        assert_eq!(results, expected);
-    }
-
+    */
 }

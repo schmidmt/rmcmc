@@ -21,7 +21,7 @@ where
     L: Fn(&M) -> f64 + Clone + Sync
 {
     pub parameter: Parameter<D, T, M>,
-    pub loglikelihood: L,
+    pub log_likelihood: L,
     pub current_score: Option<f64>,
     pub order: Vec<usize>,
     pub transit_p: f64,
@@ -35,7 +35,7 @@ where
 {
     pub fn new(
         parameter: Parameter<D, Vec<bool>, M>,
-        loglikelihood: L,
+        log_likelihood: L,
         init_model: &M,
         transit_p: f64
     ) -> Option<Self> {
@@ -44,7 +44,7 @@ where
 
         Some(Self {
             parameter,
-            loglikelihood,
+            log_likelihood,
             current_score: None,
             order: (0..size).collect(),
             transit_p,
@@ -73,7 +73,7 @@ where
         self.order.shuffle(rng);
         let mut log_p = match self.current_score {
             Some(p) => p,
-            None => (self.loglikelihood)(&model)
+            None => (self.log_likelihood)(&model)
         };
         let mut m = model.clone();
         let mut bool_vec = self.parameter.lens.get(&m.clone());
@@ -82,7 +82,7 @@ where
             if rng.gen::<f64>() < self.transit_p {
                 bool_vec[*idx] = !bool_vec[*idx];
                 self.parameter.lens.set_in_place(&mut m, bool_vec.clone());
-                let log_p_candidate = (self.loglikelihood)(&m);
+                let log_p_candidate = (self.log_likelihood)(&m);
                 match util::metropolis_select(rng, log_p_candidate - log_p, bool_vec[*idx], !bool_vec[*idx]) {
                     util::MetroplisUpdate::Accepted(q, _) => {
                         bool_vec[*idx] = q;

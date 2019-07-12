@@ -1,9 +1,10 @@
 //! An implementation of the Simple Scaling Adaptor
 
-use steppers::adaptor::ScaleAdaptor;
-use steppers::{AdaptationStatus, AdaptationMode};
-use steppers::util::MetroplisUpdate;
 use std::marker::PhantomData;
+
+use crate::steppers::adaptor::ScaleAdaptor;
+use crate::steppers::metropolis_hastings_utils::MetropolisUpdate;
+use crate::steppers::{AdaptationMode, AdaptationStatus};
 
 /// # Simple Adaptor
 /// A simple scale adaptor derived from
@@ -11,7 +12,7 @@ use std::marker::PhantomData;
 #[derive(Clone, Debug)]
 pub struct SimpleAdaptor<T>
 where
-    T: Clone
+    T: Clone,
 {
     alpha_sum: f64,
     n_updates: usize,
@@ -19,14 +20,14 @@ where
     scale: f64,
     initial_scale: f64,
     enabled: bool,
-    phantom_t: PhantomData<T>
+    phantom_t: PhantomData<T>,
 }
-
 
 impl<T> SimpleAdaptor<T>
 where
     T: Clone,
 {
+    /// Create a new simple adaptor that adapts every `adapt_interval` steps
     pub fn new(scale: f64, adapt_interval: usize) -> Self {
         Self {
             alpha_sum: 0.0,
@@ -35,46 +36,21 @@ where
             scale,
             initial_scale: scale,
             enabled: false,
-            phantom_t: PhantomData
+            phantom_t: PhantomData,
         }
     }
 }
 
 impl<T> ScaleAdaptor<T> for SimpleAdaptor<T>
 where
-    T: Clone
+    T: Clone,
 {
-    fn reset(&mut self) {
-        self.alpha_sum = 0.0;
-        self.n_updates = 0;
-        self.scale = self.initial_scale;
-    }
-
-    fn get_scale(&self) -> f64 {
-        self.scale
-    }
-
-    fn get_mode(&self) -> AdaptationStatus {
-        if self.enabled {
-            AdaptationStatus::Enabled
-        } else {
-            AdaptationStatus::Disabled
-        }
-    }
-
-    fn set_mode(&mut self, mode: AdaptationMode) {
-        match mode {
-            AdaptationMode::Enabled => self.enabled = true,
-            AdaptationMode::Disabled => self.enabled = false
-        }
-    }
-
-    fn update(&mut self, update: &MetroplisUpdate<T>) {
+    fn update(&mut self, update: &MetropolisUpdate<T>) {
         if self.enabled {
             self.n_updates += 1;
             let alpha = match update {
-                MetroplisUpdate::Accepted(_, a) => a.exp(),
-                MetroplisUpdate::Rejected(_, a) => a.exp(),
+                MetropolisUpdate::Accepted(_, a) => a.exp(),
+                MetropolisUpdate::Rejected(_, a) => a.exp(),
             };
             self.alpha_sum += alpha;
 
@@ -99,46 +75,70 @@ where
             }
         }
     }
+
+    fn scale(&self) -> f64 {
+        self.scale
+    }
+
+    fn set_mode(&mut self, mode: AdaptationMode) {
+        match mode {
+            AdaptationMode::Enabled => self.enabled = true,
+            AdaptationMode::Disabled => self.enabled = false,
+        }
+    }
+
+    fn mode(&self) -> AdaptationStatus {
+        if self.enabled {
+            AdaptationStatus::Enabled
+        } else {
+            AdaptationStatus::Disabled
+        }
+    }
+
+    fn reset(&mut self) {
+        self.alpha_sum = 0.0;
+        self.n_updates = 0;
+        self.scale = self.initial_scale;
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
     use super::*;
 
     #[test]
     fn should_increase_scale_with_too_high_alpha() {
         let mut adaptor = SimpleAdaptor::new(1.0, 10);
         adaptor.set_mode(AdaptationMode::Enabled);
-        assert_eq!(adaptor.get_scale(), 1.0);
+        assert_eq!(adaptor.scale(), 1.0);
 
         for _ in 0..100 {
-            adaptor.update(&MetroplisUpdate::Accepted(1, 0.5));
+            adaptor.update(&MetropolisUpdate::Accepted(&1, 0.5));
         }
-        assert!(adaptor.get_scale() > 1.0);
+        assert!(adaptor.scale() > 1.0);
     }
 
     #[test]
     fn should_decrease_scale_with_too_low_alpha() {
         let mut adaptor = SimpleAdaptor::new(1.0, 10);
         adaptor.set_mode(AdaptationMode::Enabled);
-        assert_eq!(adaptor.get_scale(), 1.0);
+        assert_eq!(adaptor.scale(), 1.0);
 
         for _ in 0..100 {
-            adaptor.update(&MetroplisUpdate::Accepted(1, 0.1));
+            adaptor.update(&MetropolisUpdate::Accepted(&1, 0.1));
         }
-        assert!(adaptor.get_scale() > 1.0);
+        assert!(adaptor.scale() > 1.0);
     }
 
     #[test]
     fn should_return_expected_scaling() {
         let mut adaptor = SimpleAdaptor::new(1.0, 10);
         adaptor.set_mode(AdaptationMode::Enabled);
-        assert_eq!(adaptor.get_scale(), 1.0);
+        assert_eq!(adaptor.scale(), 1.0);
 
         for _ in 0..100 {
-            adaptor.update(&MetroplisUpdate::Accepted(1, 0.51_f64.ln()));
+            adaptor.update(&MetropolisUpdate::Accepted(&1, 0.51_f64.ln()));
         }
-        assert::close(adaptor.get_scale(), 1.1_f64.powi(10), 1E-12);
+        assert::close(adaptor.scale(), 1.1_f64.powi(10), 1E-12);
     }
 }

@@ -21,8 +21,8 @@ where
     L: Fn(&M) -> f64 + Clone + Sync
 {
     pub parameter: Parameter<D, T, M>,
-    loglikelihood: L,
-    current_loglikelihood_score: Option<f64>,
+    log_likelihood: L,
+    current_log_likelihood_score: Option<f64>,
     current_prior_score: Option<f64>,
     adaptor: SimpleAdaptor<T>,
 }
@@ -50,13 +50,13 @@ where
 {
     pub fn new(
         parameter: Parameter<D, T, M>,
-        loglikelihood: L
+        log_likelihood: L
     ) -> Option<Self> {
         let adaptor = SimpleAdaptor::new(0.5, 50);
         Some(Self {
             parameter,
-            loglikelihood,
-            current_loglikelihood_score: None,
+            log_likelihood,
+            current_log_likelihood_score: None,
             current_prior_score: None,
             adaptor
         })
@@ -81,9 +81,9 @@ where
         let p = 1.0 - (0.5f64).powf(self.adaptor.get_scale());
         let mut m = model.clone();
 
-        let mut log_p = match self.loglikelihood {
+        let mut log_p = match self.log_likelihood {
             Some(p) => p,
-            None => (self.loglikelihood)(&model)
+            None => (self.log_likelihood)(&model)
         };
         let mut value = self.parameter.lens.get(&model);
         (0..value.len()).for_each(|idx| {
@@ -91,7 +91,7 @@ where
                 let mut proposed_value = value.clone();
                 proposed_value[idx] = !proposed_value[idx];
                 self.parameter.lens.set_in_place(&mut m, proposed_value.clone());
-                let proposed_log_p = (self.loglikelihood)(&m);
+                let proposed_log_p = (self.log_likelihood)(&m);
                 
                 let update = util::metropolis_select(rng, proposed_log_p - log_p, proposed_value.clone(), value.clone());
                 self.adaptor.update(&update);
@@ -110,9 +110,9 @@ where
         m
     }
 
-    fn step_with_loglikelihood(&mut self, rng: &mut R, model: M, loglikelihood: Option<f64>) -> (M, Option<f64>) {
-        self.score = model_with_loglikelihood.score;
-        let new_model = self.step(rng, model_with_loglikelihood.model);
+    fn step_with_log_likelihood(&mut self, rng: &mut R, model: M, log_likelihood: Option<f64>) -> (M, Option<f64>) {
+        self.score = model_with_log_likelihood.score;
+        let new_model = self.step(rng, model_with_log_likelihood.model);
         ModelAndLikelihood::new(new_model, self.score)
     }
 
@@ -128,7 +128,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    extern crate test;
     use super::*;
     use lens::*;
     use runner::Runner;
@@ -175,7 +174,7 @@ mod tests {
             }).collect();
 
             // Log Likelihood Calculation
-            let loglikelihood = move |m: &Model| {
+            let log_likelihood = move |m: &Model| {
                 m.p.iter().zip(samples.iter()).map(|(&a, y)| {
                     if a {
                         g1.ln_f(y)
@@ -186,7 +185,7 @@ mod tests {
             };
 
             // Create algorithm and run sampler
-            let alg = BinaryMetropolis::new(parameter, loglikelihood).unwrap();
+            let alg = BinaryMetropolis::new(parameter, log_likelihood).unwrap();
             let m = Model { p: dist.draw(&mut rng) };
             
             let runner = Runner::new(alg)
