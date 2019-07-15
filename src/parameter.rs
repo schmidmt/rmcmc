@@ -1,6 +1,5 @@
 use rand::RngCore;
 use rv::traits::Rv;
-use std::fmt;
 
 use crate::lens::*;
 
@@ -12,21 +11,10 @@ pub struct Parameter<R, T, S>
 where
     R: Rv<T>,
 {
-    /// Name of parameter (must be unique)
-    pub name: String,
     /// Prior distribution
     pub prior: R,
     /// Lens to update value
     pub lens: Lens<T, S>,
-}
-
-impl<D, T, S> fmt::Debug for Parameter<D, T, S>
-where
-    D: Rv<T>,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Parameter {{ name: {} }}", self.name)
-    }
 }
 
 impl<D, T, S> Clone for Parameter<D, T, S>
@@ -35,7 +23,6 @@ where
 {
     fn clone(&self) -> Parameter<D, T, S> {
         Parameter {
-            name: self.name.clone(),
             prior: self.prior.clone(),
             lens: self.lens.clone(),
         }
@@ -52,8 +39,8 @@ where
     /// * `name` - Name of the parameter for output labeling
     /// * `prior` - Prior probability of random variable
     /// * `lens` - Lens to access inner value
-    pub fn new(name: String, prior: D, lens: Lens<T, S>) -> Self {
-        Parameter { name, prior, lens }
+    pub fn new(prior: D, lens: Lens<T, S>) -> Self {
+        Parameter { prior, lens }
     }
 
     /// Create a new version of the struct with a randomly drawn value from the value's
@@ -75,11 +62,9 @@ mod tests {
             bar: f64,
         }
 
-        let p = Parameter::new(
-            "test".to_string(),
+        let _ = Parameter::new(
             Beta::jeffreys(),
             make_lens!(Foo, f64, bar),
         );
-        assert_eq!(p.name, "test".to_string());
     }
 }

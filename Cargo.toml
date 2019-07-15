@@ -10,7 +10,7 @@ keywords = ["Probability", "Statistics", "Bayesian", "Machine-learning", "MCMC"]
 edition = "2018"
 
 [features]
-serde_support = ["serde", "serde_derive", "nalgebra/serde-serialize"]
+#serde_support = ["serde", "serde_derive", "nalgebra/serde-serialize"]
 
 [badges]
 travis-ci = { repository = "schmidmt/rmcmc", branch = "master" }
@@ -20,13 +20,13 @@ maintenance = { status = "actively-developed" }
 # alga = "0.7.2"
 # alga_derive = "0.7.1"
 # generic-array = "0.12.0"
-nalgebra = "0.16.13"
+#nalgebra = "0.16.13"
 num = "0.2.0"
-num-traits = "0.2"
+#num-traits = "0.2"
 rand = "0.6"
-reduce = "0.1.1"
-rv = "0.5.2"
-special = "0.7.8"
+#reduce = "0.1.1"
+rv = "0.6.1"
+#special = "0.7.8"
 typenum = "1.10.0"
 rayon = "1.0.3"
 itertools = "0.8.0"
@@ -36,4 +36,3 @@ serde_derive = {version = "1.0.70", optional = true}
 [dev-dependencies]
 assert = "0.7.4"
 # pseudo = "0.2.0"
-double = "0.2.3"
