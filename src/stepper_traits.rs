@@ -1,4 +1,5 @@
 use rand::Rng;
+use crate::steppers::adaptors::AdaptState;
 
 /// Trait for Stepping Algorithms
 pub trait SteppingAlg<'a, Model, RNG>: Sync + Send
@@ -20,9 +21,18 @@ pub trait SteppingAlg<'a, Model, RNG>: Sync + Send
     /// Return a sample from this stepper
     fn sample(&mut self, rng: &mut RNG, model: Model, size: usize, thinning: usize) -> Vec<Model> {
         (0..size).scan(model, |m, _| {
-            Some(self.multiple_steps(rng, m.clone(), thinning))
+            let next_model = self.multiple_steps(rng, m.clone(), thinning);
+            *m = next_model.clone();
+            Some(next_model)
         }).collect()
     }
+
+    /// Enable Adaptation
+    fn adapt_enable(&mut self);
+    /// Disable Adaptation
+    fn adapt_disable(&mut self);
+    /// Get adaptation status
+    fn adapt_state(&self) -> AdaptState;
 }
 
 /// Builder for Steppers

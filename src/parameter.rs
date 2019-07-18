@@ -1,4 +1,4 @@
-use rand::RngCore;
+use rand::Rng;
 use rv::traits::Rv;
 
 use crate::lens::*;
@@ -45,7 +45,7 @@ where
 
     /// Create a new version of the struct with a randomly drawn value from the value's
     /// distribution.
-    pub fn draw<R: RngCore>(&self, s: &S, rng: &mut R) -> S {
+    pub fn draw<R: Rng>(&self, s: &S, rng: &mut R) -> S {
         let new_value = self.prior.draw(rng);
         self.lens.set(s, new_value)
     }
