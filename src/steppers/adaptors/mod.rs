@@ -9,3 +9,6 @@ pub use self::adaptor_state::*;
 
 mod global_adaptor;
 pub use global_adaptor::*;
+
+mod simple;
+pub use simple::*;

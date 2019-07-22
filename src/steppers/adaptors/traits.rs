@@ -2,7 +2,7 @@ use crate::steppers::adaptors::AdaptState;
 use crate::steppers::helpers::MHStatus;
 
 /// General adaptor trait
-pub trait Adaptor<Type> {
+pub trait Adaptor<Type>: Send + Sync + Clone {
     /// Update the adaptor with an MHStatus
     fn update(&mut self, update: &MHStatus<Type>);
     /// Retrieve the current state

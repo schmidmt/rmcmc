@@ -4,3 +4,4 @@ pub mod adaptors;
 pub mod helpers;
 pub mod group;
 pub mod srwm;
+pub mod discrete_srwm;

@@ -63,7 +63,7 @@ where
 
 impl<T> Adaptor<T> for GlobalAdaptor<T, T>
 where
-    T: Float + Clone,
+    T: Float + Clone + Send + Sync,
 {
     fn update(&mut self, update: &MHStatus<T>) {
         if self.enabled {
@@ -116,7 +116,7 @@ where
 
 impl<T> ScaleAdaptor<T> for GlobalAdaptor<T, T>
 where
-    T: Float + Clone + Copy,
+    T: Float + Clone + Send + Sync,
 {
     fn scale(&self) -> f64 {
         self.proposal_scale
