@@ -4,7 +4,7 @@
 //! ```rust
 //!
 //! ```
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 #[macro_use]
 mod lens;
@@ -16,9 +16,12 @@ pub use parameter::*;
 mod stepper_traits;
 pub use stepper_traits::*;
 
-
 pub mod steppers;
 
 mod runner;
-pub use self::runner::Runner;
+pub use self::runner::*;
 
+pub mod utils;
+
+#[cfg(test)]
+pub mod stepper_mocks;

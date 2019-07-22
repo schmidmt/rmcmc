@@ -1,3 +1,5 @@
+//! Adaptors for automatically tuning stepping algorithms
+
 
 mod traits;
 pub use self::traits::*;

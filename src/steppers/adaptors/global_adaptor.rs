@@ -1,9 +1,9 @@
 //! An implementation of the Global Adaptor
 
-use num::{Float, FromPrimitive};
-use crate::steppers::helpers::MHStatus::{Accepted, Rejected};
-use crate::steppers::adaptors::{Adaptor, ScaleAdaptor, AdaptState};
+use crate::steppers::adaptors::{AdaptState, Adaptor, ScaleAdaptor};
 use crate::steppers::helpers::MHStatus;
+use crate::steppers::helpers::MHStatus::{Accepted, Rejected};
+use num::{Float, FromPrimitive};
 
 /// # Globally Adaptive MC Adaptor
 ///
@@ -26,9 +26,9 @@ pub struct GlobalAdaptor<T, V> {
 }
 
 impl<T, V> GlobalAdaptor<T, V>
-    where
-        T: Clone,
-        V: Clone,
+where
+    T: Clone,
+    V: Clone,
 {
     /// Create a new global adaptor with the given `proposal_scale`, `mean`, and `scale`.
     pub fn new(initial_proposal_scale: f64, mean: T, scale: V) -> Self {
@@ -62,8 +62,8 @@ impl<T, V> GlobalAdaptor<T, V>
 }
 
 impl<T> Adaptor<T> for GlobalAdaptor<T, T>
-    where
-        T: Float + Clone
+where
+    T: Float + Clone,
 {
     fn update(&mut self, update: &MHStatus<T>) {
         if self.enabled {
@@ -75,7 +75,7 @@ impl<T> Adaptor<T> for GlobalAdaptor<T, T>
             let g: T = T::from(
                 0.9 / f64::from_usize(self.step + 1).unwrap().powf(0.9),
             )
-                .unwrap();
+            .unwrap();
             let delta: T = **new_value - self.mu;
             let new_log_lambda = self.log_lambda
                 + g.to_f64().unwrap() * (alpha - self.target_alpha);
@@ -114,10 +114,9 @@ impl<T> Adaptor<T> for GlobalAdaptor<T, T>
     }
 }
 
-
 impl<T> ScaleAdaptor<T> for GlobalAdaptor<T, T>
-    where
-        T: Float + Clone + Copy,
+where
+    T: Float + Clone + Copy,
 {
     fn scale(&self) -> f64 {
         self.proposal_scale

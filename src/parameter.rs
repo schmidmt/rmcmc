@@ -62,9 +62,6 @@ mod tests {
             bar: f64,
         }
 
-        let _ = Parameter::new(
-            Beta::jeffreys(),
-            make_lens!(Foo, f64, bar),
-        );
+        let _ = Parameter::new(Beta::jeffreys(), make_lens!(Foo, f64, bar));
     }
 }

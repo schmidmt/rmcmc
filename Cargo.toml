@@ -17,6 +17,7 @@ travis-ci = { repository = "schmidmt/rmcmc", branch = "master" }
 maintenance = { status = "actively-developed" }
 
 [dependencies]
+log = "0.4.7"
 # alga = "0.7.2"
 # alga_derive = "0.7.1"
 # generic-array = "0.12.0"
@@ -35,4 +36,4 @@ serde_derive = {version = "1.0.70", optional = true}
 
 [dev-dependencies]
 assert = "0.7.4"
-# pseudo = "0.2.0"
+pseudo = "0.2.0"

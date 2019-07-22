@@ -1,6 +1,6 @@
 use rand::Rng;
-use std::fmt::{Debug, Formatter};
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 
 /// Metropolis-Hasting Accept / Reject Status
 /// Contains the value of the next step (previous if rejected, proposal if accepted)

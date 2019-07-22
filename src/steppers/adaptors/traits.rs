@@ -1,5 +1,5 @@
-use crate::steppers::helpers::MHStatus;
 use crate::steppers::adaptors::AdaptState;
+use crate::steppers::helpers::MHStatus;
 
 /// General adaptor trait
 pub trait Adaptor<Type> {
@@ -12,7 +12,6 @@ pub trait Adaptor<Type> {
     /// Disable updates to the adaptor
     fn disable(&mut self);
 }
-
 
 /// An Adaptor with a adapted scale
 pub trait ScaleAdaptor<Type>: Adaptor<Type> {
