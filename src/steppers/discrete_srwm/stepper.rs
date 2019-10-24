@@ -10,6 +10,14 @@ use std::marker::PhantomData;
 
 /// Extension Type for DiscreteSRWM supported types
 pub trait DiscreteType: Integer + Saturating + ToPrimitive + FromPrimitive + Clone + Send + Sync  {}
+impl DiscreteType for u8 {}
+impl DiscreteType for u16 {}
+impl DiscreteType for u32 {}
+impl DiscreteType for u64 {}
+impl DiscreteType for i8 {}
+impl DiscreteType for i16 {}
+impl DiscreteType for i32 {}
+impl DiscreteType for i64 {}
 
 
 /// Discrete Symmetric Random Walk Metropolis State

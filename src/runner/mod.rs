@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn abc() {
         let builder = MockBuilder::new();
-        let runner: Runner<Model, StdRng> = Runner::new(&builder)
+        let _runner: Runner<Model, StdRng> = Runner::new(&builder)
             .chains(1)
             .initial_model(Model { x: 0.0 });
     }

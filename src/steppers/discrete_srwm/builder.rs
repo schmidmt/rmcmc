@@ -46,18 +46,18 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG> DiscreteSRWMBuilder<'a, Prior, 
     }
 
     /// Set the initial proposal scale
-    pub fn initial_scale(&self, initial_scale: f64) -> Self {
+    pub fn initial_scale(self, initial_scale: f64) -> Self {
         Self {
             initial_scale,
-            ..(*self).clone()
+            ..self
         }
     }
 
     /// Set the adapt interval for the `SimpleAdaptor`.
-    pub fn adapt_interval(&self, adapt_interval: usize) -> Self {
+    pub fn adapt_interval(self, adapt_interval: usize) -> Self {
         Self {
             adapt_interval,
-            ..(*self).clone()
+            ..self
         }
     }
 }
@@ -71,7 +71,7 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG> StepperBuilder<'a, Model, RNG> 
         LogLikelihood: Fn(&Model) -> f64 + Send + Sync + Clone,
         RNG: Rng + Send + Sync + Clone + 'a,
 {
-    fn build(&self) -> Box<SteppingAlg<'a, Model, RNG> + 'a> {
+    fn build(&self) -> Box<dyn SteppingAlg<'a, Model, RNG> + 'a> {
         let adaptor = SimpleAdaptor::new(self.initial_scale, self.adapt_interval);
         Box::new(DiscreteSRWM::new(self.parameter, self.log_likelihood, adaptor))
     }

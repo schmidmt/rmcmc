@@ -62,11 +62,11 @@ where
     ///
     /// # Parameters
     /// * `initial_scale` - The starting scale to set within the sampler.
-    pub fn initial_scale(&self, initial_scale: f64) -> Self {
+    pub fn initial_scale(self, initial_scale: f64) -> Self {
         assert!(initial_scale > 0.0, "The scale must be greater than zero");
         Self {
             initial_scale,
-            ..self.clone()
+            ..self
         }
     }
 }
