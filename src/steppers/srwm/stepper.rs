@@ -79,13 +79,13 @@ where
         log_likelihood: Option<f64>,
     ) -> (Model, f64) {
         // Determine current state
-        let current_value = self.parameter.lens.get(&model);
+        let current_value = self.parameter.lens().get(&model);
         let current_ll =
             log_likelihood.unwrap_or_else(|| (self.log_likelihood)(&model));
 
         let current_prior = self
             .current_prior_score
-            .unwrap_or_else(|| self.parameter.prior.ln_f(&current_value));
+            .unwrap_or_else(|| self.parameter.prior(&model).ln_f(&current_value));
 
         let current_score = current_ll + current_prior;
 
@@ -98,10 +98,10 @@ where
         let proposed_value: f64 = proposal_dist.draw(rng);
         let proposed_value: Type = proposed_value.into();
         let proposed_model =
-            self.parameter.lens.set(&model, proposed_value);
+            self.parameter.lens().set(&model, proposed_value);
 
         let proposed_prior = {
-            let p = self.parameter.prior.ln_f(&proposed_value);
+            let p = self.parameter.prior(&proposed_model).ln_f(&proposed_value);
             if p.is_nan() {
                 std::f64::NEG_INFINITY
             } else {
@@ -191,7 +191,7 @@ mod tests {
 
             let log_likelihood = |_: &Model| { 0.0 };
 
-            let x = Parameter::new(
+            let x = Parameter::new_independent(
                 Gaussian::standard(),
                 make_lens!(Model, f64, x)
             );
@@ -238,7 +238,7 @@ mod tests {
                 Gaussian::standard().ln_f(&m.x)
             };
 
-            let x = Parameter::new(
+            let x = Parameter::new_independent(
                 Uniform::new(-1000.0, 1000.0).unwrap(),
                 make_lens!(Model, f64, x)
             );

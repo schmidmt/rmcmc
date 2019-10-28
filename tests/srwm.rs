@@ -38,7 +38,7 @@ fn srmw_mean_of_gaussians() {
         }
     }
 
-    let parameter = Parameter::new(prior, make_lens!(Model, f64, mean));
+    let parameter = Parameter::new_independent(prior, make_lens!(Model, f64, mean));
 
     let log_likelihood = |m: &Model| {
         let g = Gaussian::new(m.mean, 1.0).unwrap();

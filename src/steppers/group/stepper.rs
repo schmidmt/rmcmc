@@ -43,33 +43,37 @@ where
     ///     - (m.x * m.x + m.y * m.y)
     /// };
     ///
-    /// let x_param = Parameter::new(
+    /// let x_param = Parameter::new_independent(
     ///     Gaussian::standard(),
     ///     make_lens!(Model, f64, x)
     /// );
     ///
-    /// let srwm_1 = SRWMBuilder::new(
+    /// let srwm_1_builder = SRWMBuilder::new(
     ///     &x_param,
     ///     &log_likelihood,
     ///     0.0,
     ///     1.0
-    /// ).build();
+    /// );
     ///
-    /// let y_param = Parameter::new(
+    /// let y_param = Parameter::new_independent(
     ///     Gaussian::standard(),
     ///     make_lens!(Model, f64, y)
     /// );
     ///
-    /// let srwm_2 = SRWMBuilder::new(
+    /// let srwm_2_builder = SRWMBuilder::new(
     ///     &y_param,
     ///     &log_likelihood,
     ///     0.0,
     ///     1.0
-    /// ).build();
+    /// );
     ///
     /// let mut rng = StdRng::seed_from_u64(0xABC);
-    /// let mut stepper = Group::new(vec![srwm_1, srwm_2]);
+    /// let mut stepper = Group::new(vec![
+    ///     srwm_1_builder.build(), 
+    ///     srwm_2_builder.build(),
+    /// ]);
     /// let sample = stepper.sample(&mut rng, Model { x: 0.0, y: 0.0 }, 10, 1);
+    ///
     ///```
     pub fn new(
         sub_steppers: Vec<Box<dyn SteppingAlg<'a, Model, RNG> + 'a>>,

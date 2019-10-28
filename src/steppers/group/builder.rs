@@ -56,14 +56,14 @@ where
     ///     Gaussian::new(m.mu, m.s2.sqrt())
     /// });
     ///
-    /// let mu = Parameter::new(
+    /// let mu = Parameter::new_independent(
     ///     Gaussian::standard(),
     ///     make_lens!(Model, f64, mu)
     /// );
     ///
     /// let mu_stepper = SRWMBuilder::new(&mu, &log_likelihood, 0.0, 1.0);
     ///
-    /// let s2 = Parameter::new(
+    /// let s2 = Parameter::new_independent(
     ///     Gamma::new(3.0, 3.0).unwrap(),
     ///     make_lens!(Model, f64, s2)
     /// );

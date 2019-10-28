@@ -74,6 +74,12 @@ macro_rules! make_lens {
             |s: &$kind, x: $ptype| $kind { $param: x, ..*s },
         )
     };
+    ($kind: ident, $param: ident) => {
+        Lens::new(
+            |s: &$kind| &(s.$param),
+            |s: &$kind, x| $kind { $param: x, ..*s },
+        )
+    };
 }
 
 /// Make a lens from a simple structure (inner type must implement Clone)
@@ -83,10 +89,11 @@ macro_rules! make_lens {
 /// * `param` - Inner value's name
 #[macro_export]
 macro_rules! make_lens_clone {
-    ($kind: ident, $ptype: ty, $param: ident) => {
+    //($kind: ident, $ptype: ty, $param: ident) => {
+    ($kind: ident, $param: ident) => {
         Lens::new(
-            |s: &$kind| (*s).$param.clone(),
-            |s: &$kind, x: $ptype| $kind { $param: x, ..*s },
+            |s: &$kind| &(s.$param),
+            |s: &$kind, x| $kind { $param: x, ..*s },
         )
     };
 }
@@ -119,12 +126,26 @@ mod tests {
             pub bar: i32,
         }
 
-        let len = make_lens!(Foo, i32, bar);
+        let len = make_lens!(Foo, bar);
         let a = Foo { bar: 1 };
 
         assert_eq!(len.get(&a).clone(), 1);
 
         let b = len.set(&a, 2_i32);
         assert_eq!(b.bar, 2);
+    }
+
+    #[test]
+    fn vec_lens() {
+        struct Foo {
+            xs: Vec<f64>,
+        }
+        
+        let lens: Lens<Vec<f64>, Foo> = make_lens!(Foo, xs);
+        let a = Foo { xs: vec![0.0, 1.0, 2.0] };
+        assert_eq!(lens.get(&a), &vec![0.0, 1.0, 2.0]);
+
+        let b = lens.set(&a, vec![4.0, 5.0, 6.0]);
+        assert_eq!(b.xs, vec![4.0, 5.0, 6.0]);
     }
 }

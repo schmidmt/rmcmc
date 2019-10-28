@@ -84,7 +84,7 @@ impl<'a, Model, RNG> Runner<'a, Model, RNG>
     ///
     /// let log_likelihood = log_likelihood_from_data(&data, |m: &Model| {Poisson::new(m.mean) });
     ///
-    /// let parameter = Parameter::new(
+    /// let parameter = Parameter::new_independent(
     ///     Gamma::new(3.0, 3.0).unwrap(),
     ///     make_lens!(Model, f64, mean)
     /// );

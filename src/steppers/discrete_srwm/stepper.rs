@@ -85,12 +85,12 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG, Adaptor> SteppingAlg<'a, Model,
     fn step_with_log_likelihood(&mut self, rng: &mut RNG, model: Model, log_likelihood: Option<f64>) -> (Model, f64) {
 
         // Current State
-        let current_value = self.parameter.lens.get(&model);
+        let current_value = self.parameter.lens().get(&model);
         let current_ll = log_likelihood.unwrap_or_else(|| {
             (self.log_likelihood)(&model)
         });
         let current_prior = self.current_prior.unwrap_or_else(|| {
-            self.parameter.prior.ln_f(&current_value)
+            self.parameter.prior(&model).ln_f(&current_value)
         });
         let current_score = current_ll + current_prior;
 
@@ -110,8 +110,8 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG, Adaptor> SteppingAlg<'a, Model,
             current_value.clone().saturating_sub(mag)
         };
 
-        let proposed_prior = self.parameter.prior.ln_f(&proposed_value);
-        let proposed_model = self.parameter.lens.set(&model, proposed_value.clone());
+        let proposed_model = self.parameter.lens().set(&model, proposed_value.clone());
+        let proposed_prior = self.parameter.prior(&proposed_model).ln_f(&proposed_value);
 
         // If the prior score is infinite, we've likely moved out of it's support.
         // Continue with the infinite value to rejection.
