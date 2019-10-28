@@ -110,7 +110,7 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG, Adaptor> SteppingAlg<'a, Model,
             current_value.clone().saturating_sub(mag)
         };
 
-        let proposed_model = self.parameter.lens().set(&model, proposed_value.clone());
+        let proposed_model = self.parameter.lens().set(model.clone(), proposed_value.clone());
         let proposed_prior = self.parameter.prior(&proposed_model).ln_f(&proposed_value);
 
         // If the prior score is infinite, we've likely moved out of it's support.
@@ -147,7 +147,7 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG, Adaptor> SteppingAlg<'a, Model,
     }
 
     fn draw_prior(&self, rng: &mut RNG, m: Model) -> Model {
-        self.parameter.draw(&m, rng)
+        self.parameter.draw(m, rng)
     }
 
     fn adapt_enable(&mut self) {

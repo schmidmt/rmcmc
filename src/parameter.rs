@@ -51,8 +51,8 @@ impl<R, T, S> Parameter<R, T, S>
 
     /// Create a new version of the struct with a randomly drawn value from the value's
     /// distribution.
-    pub fn draw<RN: Rng>(&self, s: &S, rng: &mut RN) -> S {
-        let new_value = self.prior(s).draw(rng);
+    pub fn draw<RN: Rng>(&self, s: S, rng: &mut RN) -> S {
+        let new_value = self.prior(&s).draw(rng);
         self.lens().set(s, new_value)
     }
 
@@ -110,8 +110,8 @@ mod tests {
             Geometric::new_unchecked(s.x)
         }), make_lens!(Foo, u32, y));
 
-        let state = param_x.draw(&state, &mut rng);
-        let state = param_y.draw(&state, &mut rng);
+        let state = param_x.draw(state, &mut rng);
+        let state = param_y.draw(state, &mut rng);
 
         assert_eq!(
             state,
@@ -132,7 +132,7 @@ mod tests {
             make_lens!(Foo, xs)
         );
         let state = Foo { xs: DVector::zeros(2) };
-        let state = param.draw(&state, &mut rng);
+        let state = param.draw(state, &mut rng);
 
         assert!(state.xs.relative_eq(
             &DVector::from_column_slice(&[

@@ -98,7 +98,7 @@ where
         let proposed_value: f64 = proposal_dist.draw(rng);
         let proposed_value: Type = proposed_value.into();
         let proposed_model =
-            self.parameter.lens().set(&model, proposed_value);
+            self.parameter.lens().set(model.clone(), proposed_value);
 
         let proposed_prior = {
             let p = self.parameter.prior(&proposed_model).ln_f(&proposed_value);
@@ -142,7 +142,7 @@ where
         }
     }
     fn draw_prior(&self, rng: &mut RNG, m: Model) -> Model {
-        self.parameter.draw(&m, rng)
+        self.parameter.draw(m, rng)
     }
 
     fn adapt_enable(&mut self) {

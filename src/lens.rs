@@ -19,26 +19,29 @@
 ///
 /// assert_eq!(len.get(&a), &1_i32);
 ///
-/// let b = len.set(&a, 2);
+/// let b = len.set(a, 2);
 /// assert_eq!(b.bar, 2);
 /// # }
 /// ```
-pub struct Lens<T, S> {
+pub struct Lens<T, S>
+{
     // Getter function
     get_func: fn(&S) -> &T,
     // Setter function
-    set_func: fn(&S, T) -> S,
+    set_func: fn(S, T) -> S,
 }
 
-impl<T, S> Clone for Lens<T, S> {
+impl<T, S> Clone for Lens<T, S>
+{
     fn clone(&self) -> Self {
         Lens { ..*self }
     }
 }
 
-impl<T, S> Lens<T, S> {
+impl<T, S> Lens<T, S> 
+{
     /// Create a new lens with getter and setter functions.
-    pub fn new(get: fn(&S) -> &T, set: fn(&S, T) -> S) -> Self {
+    pub fn new(get: fn(&S) -> &T, set: fn(S, T) -> S) -> Self {
         Lens {
             get_func: get,
             set_func: set,
@@ -46,18 +49,23 @@ impl<T, S> Lens<T, S> {
     }
 
     /// Set a value `x` in the struct `s`
-    pub fn set(&self, s: &S, x: T) -> S {
-        (self.set_func)(&s, x)
+    pub fn set(&self, s: S, x: T) -> S {
+        (self.set_func)(s, x)
     }
 
     /// Retrieve the value from `s`
     pub fn get<'a>(&self, s: &'a S) -> &'a T {
         (self.get_func)(&s)
     }
+}
 
+impl<T, S> Lens<T, S>
+where
+    S: Clone,
+{
     /// Set the value `x` into `s` in-place (no copy).
     pub fn set_in_place(&self, s: &mut S, x: T) {
-        *s = self.set(s, x);
+        *s = self.set(s.clone(), x);
     }
 }
 
@@ -71,29 +79,13 @@ macro_rules! make_lens {
     ($kind: ident, $ptype: ty, $param: ident) => {
         Lens::new(
             |s: &$kind| &(s.$param),
-            |s: &$kind, x: $ptype| $kind { $param: x, ..*s },
+            |s: $kind, x: $ptype| $kind { $param: x, ..s },
         )
     };
     ($kind: ident, $param: ident) => {
         Lens::new(
             |s: &$kind| &(s.$param),
-            |s: &$kind, x| $kind { $param: x, ..*s },
-        )
-    };
-}
-
-/// Make a lens from a simple structure (inner type must implement Clone)
-/// # Arguments
-/// * `kind` - Outer Struct Type
-/// * `ptype` - Inner Type
-/// * `param` - Inner value's name
-#[macro_export]
-macro_rules! make_lens_clone {
-    //($kind: ident, $ptype: ty, $param: ident) => {
-    ($kind: ident, $param: ident) => {
-        Lens::new(
-            |s: &$kind| &(s.$param),
-            |s: &$kind, x| $kind { $param: x, ..*s },
+            |s: $kind, x| $kind { $param: x, ..s },
         )
     };
 }
@@ -110,13 +102,13 @@ mod tests {
 
         let len: Lens<i32, Foo> = Lens::new(
             |x: &Foo| &(*x).bar,
-            |x: &Foo, y: i32| Foo { bar: y, ..*x },
+            |x: Foo, y: i32| Foo { bar: y, ..x },
         );
 
         let a = Foo { bar: 1 };
         assert_eq!(len.get(&a), &1i32);
 
-        let b = len.set(&a, 2);
+        let b = len.set(a, 2);
         assert_eq!(b.bar, 2i32);
     }
 
@@ -131,7 +123,7 @@ mod tests {
 
         assert_eq!(len.get(&a).clone(), 1);
 
-        let b = len.set(&a, 2_i32);
+        let b = len.set(a, 2_i32);
         assert_eq!(b.bar, 2);
     }
 
@@ -145,7 +137,7 @@ mod tests {
         let a = Foo { xs: vec![0.0, 1.0, 2.0] };
         assert_eq!(lens.get(&a), &vec![0.0, 1.0, 2.0]);
 
-        let b = lens.set(&a, vec![4.0, 5.0, 6.0]);
+        let b = lens.set(a, vec![4.0, 5.0, 6.0]);
         assert_eq!(b.xs, vec![4.0, 5.0, 6.0]);
     }
 }
