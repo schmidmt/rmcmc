@@ -1,9 +1,12 @@
-use crate::steppers::discrete_srwm::{DiscreteType, DiscreteSRWM};
+use std::marker::PhantomData;
+
 use rv::traits::Rv;
 use rand::Rng;
+
+use crate::traits::*;
 use crate::steppers::adaptors::SimpleAdaptor;
 use crate::{Parameter, StepperBuilder, SteppingAlg};
-use std::marker::PhantomData;
+use crate::steppers::discrete_srwm::DiscreteSRWM;
 
 /// Builder state for a Discrete Symmetric Random Walk Metropolis
 #[derive(Clone)]

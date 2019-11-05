@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<T> ScaleAdaptor<T> for SimpleAdaptor<T>
+impl<T> ScaleAdaptor<T, f64> for SimpleAdaptor<T>
     where
         T: Clone + Send + Sync,
 {

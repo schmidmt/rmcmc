@@ -14,7 +14,7 @@ pub trait Adaptor<Type>: Send + Sync + Clone {
 }
 
 /// An Adaptor with a adapted scale
-pub trait ScaleAdaptor<Type>: Adaptor<Type> {
+pub trait ScaleAdaptor<Type, VType>: Adaptor<Type> {
     /// Retrieve the current scale from the adaptor
-    fn scale(&self) -> f64;
+    fn scale(&self) -> VType;
 }

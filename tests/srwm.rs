@@ -46,8 +46,7 @@ fn srmw_mean_of_gaussians() {
     };
 
     let stepper_builder =
-        SRWMBuilder::new(&parameter, &log_likelihood, 0.0, 1.0)
-            .initial_scale(1.0);
+        SRWMBuilder::new(&parameter, &log_likelihood, 0.0, 1.0);
 
     let runner = Runner::new(&stepper_builder)
         .draws(1000)

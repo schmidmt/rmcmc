@@ -16,6 +16,8 @@ pub use parameter::*;
 mod stepper_traits;
 pub use stepper_traits::*;
 
+pub mod traits;
+
 pub mod steppers;
 
 mod runner;

@@ -1,23 +1,15 @@
-use rv::traits::Rv;
-use rand::Rng;
-use num::{Saturating, Integer, ToPrimitive, FromPrimitive};
-use crate::{Parameter, SteppingAlg};
-use crate::steppers::adaptors::{ScaleAdaptor, AdaptState};
-use rv::dist::Geometric;
-use crate::steppers::helpers::metropolis_proposal;
-use crate::steppers::helpers::MHStatus::*;
 use std::marker::PhantomData;
 
-/// Extension Type for DiscreteSRWM supported types
-pub trait DiscreteType: Integer + Saturating + ToPrimitive + FromPrimitive + Clone + Send + Sync  {}
-impl DiscreteType for u8 {}
-impl DiscreteType for u16 {}
-impl DiscreteType for u32 {}
-impl DiscreteType for u64 {}
-impl DiscreteType for i8 {}
-impl DiscreteType for i16 {}
-impl DiscreteType for i32 {}
-impl DiscreteType for i64 {}
+use rv::traits::Rv;
+use rand::Rng;
+use rv::dist::Geometric;
+
+use crate::{Parameter, SteppingAlg};
+use crate::steppers::adaptors::{ScaleAdaptor, AdaptState};
+use crate::steppers::helpers::metropolis_proposal;
+use crate::steppers::helpers::MHStatus::*;
+use crate::traits::*;
+
 
 
 /// Discrete Symmetric Random Walk Metropolis State
@@ -27,7 +19,7 @@ pub struct DiscreteSRWM<'a, Prior, Type, Model, LogLikelihood, Adaptor, RNG>
         Prior: Rv<Type>,
         LogLikelihood: Fn(&Model) -> f64,
         RNG: Rng,
-        Adaptor: ScaleAdaptor<Type>,
+        Adaptor: ScaleAdaptor<Type, f64>,
 {
     parameter: &'a Parameter<Prior, Type, Model>,
     log_likelihood: &'a LogLikelihood,
@@ -44,7 +36,7 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG, Adaptor> DiscreteSRWM<'a, Prior
         Prior: Rv<Type>,
         LogLikelihood: Fn(&Model) -> f64,
         RNG: Rng,
-        Adaptor: ScaleAdaptor<Type>,
+        Adaptor: ScaleAdaptor<Type, f64>,
 {
     /// Create a new DiscreteSRWM stepper
     ///
@@ -75,7 +67,7 @@ impl<'a, Prior, Type, Model, LogLikelihood, RNG, Adaptor> SteppingAlg<'a, Model,
         Prior: Rv<Type> + Send + Sync,
         LogLikelihood: Fn(&Model) -> f64 + Send + Sync,
         RNG: Rng + Send + Sync,
-        Adaptor: ScaleAdaptor<Type>,
+        Adaptor: ScaleAdaptor<Type, f64>,
 {
     fn step(&mut self, rng: &mut RNG, model: Model) -> Model {
         let current_ll = self.current_log_likelihood;
