@@ -1,9 +1,11 @@
 // mod iter;
 // pub use iter::*;
 
-use crate::StepperBuilder;
 use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
+use log::debug;
+
+use crate::StepperBuilder;
 
 /// Initialization mode for steppers' models
 #[derive(Clone)]
@@ -187,7 +189,8 @@ impl<'a, Model, RNG> Runner<'a, Model, RNG>
 
         seeds
             .par_iter()
-            .map(|seed| {
+            .enumerate()
+            .map(|(thread_n, seed)| {
                 let mut rng = RNG::seed_from_u64(*seed);
                 let mut stepper = self.builder.build();
 
@@ -199,12 +202,14 @@ impl<'a, Model, RNG> Runner<'a, Model, RNG>
                 };
 
                 // Warm Up
+                debug!("Thread {} warming up for {} iterations", thread_n, self.warm_up);
                 stepper.adapt_enable();
                 let mut warmup =
                     stepper.sample(&mut rng, init_model, self.warm_up, 1);
                 stepper.adapt_disable();
 
                 // Sample Generation
+                debug!("Thread {} sampling for {} iterations", thread_n, self.draws * self.thinning);
                 let sample = stepper.sample(
                     &mut rng,
                     warmup.last().unwrap().clone(),

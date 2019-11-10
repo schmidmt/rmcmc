@@ -1,5 +1,5 @@
+/*
 use rv::traits::Rv;
-
 /// Generate a log_likelihood closure with a given set of data
 ///
 /// # Example
@@ -27,3 +27,4 @@ where
         Err(_) => std::f64::NEG_INFINITY,
     }
 }
+*/

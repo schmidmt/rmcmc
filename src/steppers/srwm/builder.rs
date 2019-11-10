@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use rand::Rng;
 use rv::traits::Rv;
+use nalgebra::{DVector, DMatrix};
 
 use crate::traits::*;
 use crate::steppers::adaptors::GlobalAdaptor;
@@ -57,6 +58,7 @@ where
         }
     }
 }
+
 impl<'a, RV, Type, LogLikelihood, Model, RNG> StepperBuilder<'a, Model, RNG>
     for SRWMBuilder<'a, RV, Type, Type, LogLikelihood, Model, RNG>
 where
@@ -70,6 +72,24 @@ where
         let adaptor = GlobalAdaptor::new(
             self.initial_proposal_mean,
             self.initial_proposal_variance
+        );
+        Box::new(SRWM::new(self.parameter, self.log_likelihood, adaptor))
+    }
+}
+
+
+impl<'a, RV, LogLikelihood, Model, RNG> StepperBuilder<'a, Model, RNG>
+    for SRWMBuilder<'a, RV, DVector<f64>, DMatrix<f64>, LogLikelihood, Model, RNG>
+where
+    Model: Clone + Send + Sync,
+    RV: Rv<DVector<f64>> + Clone + Sync + Send,
+    LogLikelihood: Fn(&Model) -> f64 + Clone + Sync + Send,
+    RNG: 'a + Rng + Clone + Sync + Send,
+{
+    fn build(&self) -> Box<dyn SteppingAlg<'a, Model, RNG> + 'a> {
+        let adaptor = GlobalAdaptor::new(
+            self.initial_proposal_mean.clone(),
+            self.initial_proposal_variance.clone()
         );
         Box::new(SRWM::new(self.parameter, self.log_likelihood, adaptor))
     }

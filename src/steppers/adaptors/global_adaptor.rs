@@ -5,7 +5,7 @@ use crate::traits::*;
 use crate::steppers::adaptors::{AdaptState, Adaptor, ScaleAdaptor};
 use crate::steppers::helpers::MHStatus;
 use crate::steppers::helpers::MHStatus::{Accepted, Rejected};
-use crate::utils::outer;
+use crate::utils::{outer, NearestSPD};
 
 
 use nalgebra::{DMatrix, DVector};
@@ -135,9 +135,14 @@ impl Adaptor<DVector<f64>> for GlobalAdaptor<DVector<f64>, DMatrix<f64>>
             let new_mu = &self.mu + g * &delta;
             let delta_delta_t: DMatrix<f64> = outer(&delta, &delta);
             let new_sigma = &self.scale + g * (delta_delta_t - &self.scale);
+            
+            // Correct for non-spd rounding issues
+            let new_sigma = NearestSPD::nearest(&new_sigma)
+                .expect("Failed to generate a SPD coveriance matrix")
+                .m;
+
             let new_proposal_scale = new_log_lambda.exp() * &new_sigma;
 
-            // TODO: Add SPD test / correction
             self.log_lambda = new_log_lambda;
             self.mu = new_mu;
             self.scale = new_sigma;
