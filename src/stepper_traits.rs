@@ -62,3 +62,43 @@ where
     /// Build the given Stepping Algorithm
     fn build(&self) -> Box<dyn SteppingAlg<'a, Model, RNG> + 'a>;
 }
+
+
+/*
+impl<'a, M, R, S> SteppingAlg<'a, M, R> for Box<S>
+where
+    R: Rng,
+    M: Clone,
+    S: SteppingAlg<'a, M, R>,
+{
+    fn step(&mut self, rng: &mut R, model: M) -> M {
+        self.step(rng, model)
+    }
+
+    fn step_with_log_likelihood(
+        &mut self,
+        rng: &mut R,
+        model: M,
+        log_likelihood: Option<f64>,
+    ) -> (M, f64) {
+        self.step_with_log_likelihood(rng, model, log_likelihood)
+    }
+
+    fn draw_prior(&self, rng: &mut R, m: M) -> M {
+        self.draw_prior(rng, m)
+    }
+
+    /// Enable Adaptation
+    fn adapt_enable(&mut self) {
+        self.adapt_enable()
+    }
+    /// Disable Adaptation
+    fn adapt_disable(&mut self) {
+        self.adapt_disable()
+    }
+    /// Get adaptation status
+    fn adapt_state(&self) -> AdaptState {
+        self.adapt_state()
+    }
+}
+*/

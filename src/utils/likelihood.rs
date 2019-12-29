@@ -1,4 +1,3 @@
-/*
 use rv::traits::Rv;
 /// Generate a log_likelihood closure with a given set of data
 ///
@@ -14,17 +13,18 @@ use rv::traits::Rv;
 ///
 /// close(log_likelihood(&3_f64), -16.34552039335715, 1E-10);
 /// ```
-pub fn log_likelihood_from_data<'a, T, M, F, X>(
+pub fn log_likelihood_from_data<'a, T, M, F, X, E>(
     data: &'a [T],
     model_to_dist: F,
 ) -> impl Fn(&M) -> f64 + Clone + 'a
 where
     X: Rv<T>,
-    F: Fn(&M) -> rv::Result<X> + Clone + 'a,
+    F: Fn(&M) -> Result<X, E> + Clone + 'a,
 {
-    move |model| match model_to_dist(model) {
-        Ok(dist) => data.iter().fold(0.0, |ll, d| ll + dist.ln_f(d)),
-        Err(_) => std::f64::NEG_INFINITY,
+    move |model| {
+        match model_to_dist(model) {
+            Ok(dist) => data.iter().fold(0.0, |ll, d| ll + dist.ln_f(d)),
+            Err(_) => std::f64::NEG_INFINITY,
+        }
     }
 }
-*/

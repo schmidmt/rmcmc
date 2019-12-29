@@ -9,7 +9,7 @@ use std::cmp::Ordering;
 mod likelihood;
 pub use likelihood::*;
 
-// #[cfg(test)]
+#[cfg(test)]
 pub mod test;
 
 /// Perform outer product on two DVectors

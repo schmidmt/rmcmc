@@ -26,4 +26,7 @@ pub use self::runner::*;
 pub mod utils;
 
 #[cfg(test)]
+pub mod geweke;
+
+#[cfg(test)]
 pub mod stepper_mocks;
