@@ -104,3 +104,73 @@ where
         self.adaptor.state()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nalgebra::{DVector, DMatrix};
+
+    #[test]
+    fn geweke_gaussian_mixture() {
+        #[derive(Clone)]
+        struct Model {
+            mus: DVector<f64>,
+            data: Vec<f64>,
+        };
+
+        let mu_parameter = Parameter::new_independent(
+            MvGaussain::new_unchecked(
+                DVector::zero(2),
+                DMatrix::identity(2)
+            ),
+            make_lens!(Model, mu)
+        );
+
+
+        let init_model: Model = Model {
+            mu: 0.0,
+            sigma2: 1.0,
+            data: vec![0.0],
+        };
+
+        fn loglikelihood(model: &Model) -> f64 {
+            let g = Gaussian::new(model.mu, model.sigma2.sqrt()).expect("Bad parameters for Normal");
+            model.data.iter().fold(0.0, |acc, x| acc + g.ln_f(x))
+        }
+
+        let builder = SRWMBuilder::new(
+            &mu_parameter,
+            &loglikelihood,
+            0.0,
+            0.2
+        );
+
+        fn to_stats(model: &Model) -> Vec<f64> {
+            // vec![model.mu, model.sigma2.sqrt()]
+            vec![model.mu]
+        }
+
+        fn resample_data(model: Model, rng: &mut StdRng) -> Model {
+            let g = Gaussian::new(model.mu, model.sigma2.sqrt()).expect("Bad parameters for Normal");
+            Model {
+                data: g.sample(10, rng),
+                ..model
+            }
+        }
+
+        let mut rng = StdRng::seed_from_u64(0x1234);
+        let config = GewekeConfig::new(500, 200, 10, 0.05, false);
+
+        assert!(geweke_test(
+            config,
+            builder,
+            init_model,
+            to_stats,
+            resample_data,
+            &mut rng
+        ));
+    }
+
+}
+

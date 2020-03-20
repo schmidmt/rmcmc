@@ -20,8 +20,7 @@ maintenance = { status = "actively-developed" }
 log = "0.4.7"
 num = "0.2.0"
 rand = "0.7"
-#rv = { git = "ssh://git@gitlab.com/baxe/rv.git", branch = "exp-bounds"}
-rv = { path = "../rv" }
+rv = { git = "ssh://git@gitlab.com/baxe/rv.git", branch = "v0.8.0-beta"}
 typenum = "1"
 rayon = "1.2"
 itertools = "0.8"
