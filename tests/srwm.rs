@@ -1,7 +1,6 @@
 use log::info;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rmcmc::Lens;
 use rmcmc::make_lens;
 use rmcmc::{Parameter, Runner};
 use rmcmc::steppers::srwm::SRWMBuilder;

@@ -123,7 +123,6 @@ where
 #[cfg(test)]
 mod tests {
     use crate::geweke::*;
-    use crate::Lens;
     use crate::{make_lens, StepperBuilder};
     use crate::Parameter;
     use crate::steppers::srwm::SRWMBuilder;

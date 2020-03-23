@@ -111,7 +111,6 @@ mod tests {
     use super::*;
     use crate::geweke::*;
     use crate::steppers::srwm::*;
-    use rv::prelude::*;
     use nalgebra::{DVector, DMatrix};
     use rand::{
         rngs::StdRng,
@@ -127,7 +126,7 @@ mod tests {
         };
 
         let mu_parameter = Parameter::new_independent(
-            MvGaussain::new_unchecked(
+            MvGaussian::new_unchecked(
                 DVector::zeros(2),
                 DMatrix::identity(2, 2)
             ),
@@ -135,31 +134,30 @@ mod tests {
         );
 
         let init_model: Model = Model {
-            mus: DVector::zeros(1),
+            mus: DVector::zeros(2),
             data: vec![],
         };
 
         fn loglikelihood(model: &Model) -> f64 {
             let sigma: DMatrix<f64> = DMatrix::identity(2, 2);
-            let g = MvGaussian::new(model.mus, sigma).expect("Bad parameters for Normal");
+            let g = MvGaussian::new(model.mus.clone(), sigma).expect("Bad parameters for Normal");
             model.data.iter().fold(0.0, |acc, x| acc + g.ln_f(x))
         }
 
         let builder = SRWMBuilder::new(
             &mu_parameter,
             &loglikelihood,
-            0.0,
-            0.2
+            DVector::zeros(2),
+            DMatrix::identity(2, 2)
         );
 
         fn to_stats(model: &Model) -> Vec<f64> {
-            // vec![model.mu, model.sigma2.sqrt()]
             vec![model.mus[0]]
         }
 
         fn resample_data(model: Model, rng: &mut StdRng) -> Model {
             let sigma: DMatrix<f64> = DMatrix::identity(2, 2);
-            let g = MvGaussian::new(model.mus, sigma).expect("Bad parameters for Normal");
+            let g = MvGaussian::new(model.mus.clone(), sigma).expect("Bad parameters for Normal");
             Model {
                 data: g.sample(10, rng),
                 ..model
@@ -167,7 +165,10 @@ mod tests {
         }
 
         let mut rng = StdRng::seed_from_u64(0x1234);
-        let config = GewekeConfig::new(500, 200, 10, 0.05, false);
+        let config = GewekeConfig {
+            save: true,
+            ..GewekeConfig::default()
+        };
 
         assert!(geweke_test(
             config,

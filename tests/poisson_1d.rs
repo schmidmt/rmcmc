@@ -2,7 +2,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rmcmc::steppers::srwm::SRWMBuilder;
 use rmcmc::utils::log_likelihood_from_data;
-use rmcmc::{make_lens, Lens, Parameter, Runner};
+use rmcmc::{make_lens, Parameter, Runner};
 use rv::dist::{Gamma, Poisson};
 use rv::misc::ks_test;
 use rv::traits::Cdf;

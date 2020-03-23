@@ -77,13 +77,13 @@ where
 #[macro_export]
 macro_rules! make_lens {
     ($kind: ident, $ptype: ty, $param: ident) => {
-        Lens::new(
+        $crate::Lens::new(
             |s: &$kind| &(s.$param),
             |s: $kind, x: $ptype| $kind { $param: x, ..s },
         )
     };
     ($kind: ident, $param: ident) => {
-        Lens::new(
+        $crate::Lens::new(
             |s: &$kind| &(s.$param),
             |s: $kind, x| $kind { $param: x, ..s },
         )

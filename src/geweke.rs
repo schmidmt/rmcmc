@@ -21,6 +21,18 @@ pub struct GewekeConfig {
     pub save: bool,
 }
 
+impl Default for GewekeConfig {
+    fn default() -> Self {
+        Self {
+            n_samples: 200,
+            thinning: 10,
+            burn_in: 1000,
+            alpha: 0.05,
+            save: false,
+        }
+    }
+}
+
 impl GewekeConfig {
     /// Create a new Geweke Config
     pub fn new(n_samples: usize, burn_in: usize, thinning: usize, alpha: f64, save: bool) -> Self {
@@ -164,6 +176,6 @@ where
         }
         result &= p > config.alpha;
     }
-
+    
     result
 }
