@@ -40,7 +40,7 @@ where
         let current_score = current_ll + current_prior;
 
         let proposal_dist =
-            MvGaussian::new(current_value.map(|x| x.into()), self.adaptor.scale())
+            MvGaussian::new(current_value.clone(), self.adaptor.scale())
                 .expect("Cannot create MvGaussain with given parameters");
 
         let proposed_value = proposal_dist.draw(rng).map(|x| x.into());
@@ -109,33 +109,39 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::geweke::*;
+    use crate::steppers::srwm::*;
+    use rv::prelude::*;
     use nalgebra::{DVector, DMatrix};
+    use rand::{
+        rngs::StdRng,
+        SeedableRng,
+    };
 
     #[test]
     fn geweke_gaussian_mixture() {
         #[derive(Clone)]
         struct Model {
             mus: DVector<f64>,
-            data: Vec<f64>,
+            data: Vec<DVector<f64>>,
         };
 
         let mu_parameter = Parameter::new_independent(
             MvGaussain::new_unchecked(
-                DVector::zero(2),
-                DMatrix::identity(2)
+                DVector::zeros(2),
+                DMatrix::identity(2, 2)
             ),
-            make_lens!(Model, mu)
+            make_lens!(Model, mus)
         );
 
-
         let init_model: Model = Model {
-            mu: 0.0,
-            sigma2: 1.0,
-            data: vec![0.0],
+            mus: DVector::zeros(1),
+            data: vec![],
         };
 
         fn loglikelihood(model: &Model) -> f64 {
-            let g = Gaussian::new(model.mu, model.sigma2.sqrt()).expect("Bad parameters for Normal");
+            let sigma: DMatrix<f64> = DMatrix::identity(2, 2);
+            let g = MvGaussian::new(model.mus, sigma).expect("Bad parameters for Normal");
             model.data.iter().fold(0.0, |acc, x| acc + g.ln_f(x))
         }
 
@@ -148,11 +154,12 @@ mod tests {
 
         fn to_stats(model: &Model) -> Vec<f64> {
             // vec![model.mu, model.sigma2.sqrt()]
-            vec![model.mu]
+            vec![model.mus[0]]
         }
 
         fn resample_data(model: Model, rng: &mut StdRng) -> Model {
-            let g = Gaussian::new(model.mu, model.sigma2.sqrt()).expect("Bad parameters for Normal");
+            let sigma: DMatrix<f64> = DMatrix::identity(2, 2);
+            let g = MvGaussian::new(model.mus, sigma).expect("Bad parameters for Normal");
             Model {
                 data: g.sample(10, rng),
                 ..model

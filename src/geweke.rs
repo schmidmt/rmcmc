@@ -1,6 +1,6 @@
 //! Geweke Test Utils
 
-use rv::misc::{ks_two_sample, KSAlternative, KSMode};
+use rv::misc::*;
 use crate::stepper_traits::*;
 use crate::utils::test::write_vec_file;
 use std::env::temp_dir;
@@ -147,7 +147,8 @@ where
         let a: Vec<f64> = mcs.iter().map(|m| m[stat_num]).collect();
         let b: Vec<f64> = scs.iter().map(|m| m[stat_num]).collect();
 
-        let (_, p) = ks_two_sample(&a, &b, KSMode::Auto, KSAlternative::TwoSided);
+        let (_, p) = ks_two_sample(&a, &b, KsMode::Auto, KsAlternative::TwoSided)
+            .expect("Failed to get result from ks_two_sample");
         if config.save {
             let tmp = temp_dir();
             let mut mcs_path = tmp.clone();
